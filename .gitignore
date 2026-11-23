@@ -1,0 +1,11 @@
+db/
+incremental_db/
+output_files/
+simulation/
+*.qws
+*.o
+*.lst
+*.exe
+__pycache__/
+sim/work/
+sim/*.cf

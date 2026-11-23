@@ -1,0 +1,94 @@
+# ============================================================================
+# sbc65.qsf - Quartus Prime Lite project settings
+#             65C02 SBC on Cyclone 10 LP 10CL006YE144C8G core board
+# ============================================================================
+set_global_assignment -name FAMILY "Cyclone 10 LP"
+set_global_assignment -name DEVICE 10CL006YE144C8G
+set_global_assignment -name TOP_LEVEL_ENTITY sbc65_top
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_1993
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS_WEAK_PULLUP "AS INPUT TRI-STATED WITH WEAK PULL-UP"
+set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
+
+# ---------------------------------------------------------------- sources
+# 65C02 core (cpu65c02_true_cycle, GPL v3) goes in its own library
+set_global_assignment -name VHDL_FILE rtl/cpu65c02/reg_pc.vhd -library r65c02_tc
+set_global_assignment -name VHDL_FILE rtl/cpu65c02/reg_sp.vhd -library r65c02_tc
+set_global_assignment -name VHDL_FILE rtl/cpu65c02/regbank_axy.vhd -library r65c02_tc
+set_global_assignment -name VHDL_FILE rtl/cpu65c02/fsm_intnmi.vhd -library r65c02_tc
+set_global_assignment -name VHDL_FILE rtl/cpu65c02/fsm_execution_unit.vhd -library r65c02_tc
+set_global_assignment -name VHDL_FILE rtl/cpu65c02/core.vhd -library r65c02_tc
+set_global_assignment -name VHDL_FILE rtl/cpu65c02/r65c02_tc.vhd -library r65c02_tc
+
+set_global_assignment -name VHDL_FILE rtl/rom_image_pkg.vhd
+set_global_assignment -name VHDL_FILE rtl/font_pkg.vhd
+set_global_assignment -name VHDL_FILE rtl/mem_blocks.vhd
+set_global_assignment -name VHDL_FILE rtl/acia6850.vhd
+set_global_assignment -name VHDL_FILE rtl/vdu_composite.vhd
+set_global_assignment -name VHDL_FILE rtl/ps2_kbd.vhd
+set_global_assignment -name VHDL_FILE rtl/terminal.vhd
+set_global_assignment -name VHDL_FILE rtl/sbc65_top.vhd
+set_global_assignment -name SDC_FILE sbc65.sdc
+
+# ---------------------------------------------------------------- pins
+# 50 MHz oscillator
+set_location_assignment PIN_91 -to clk50
+# -> terminal / ESP32 RX
+set_location_assignment PIN_33 -to uart_txd
+# <- terminal / ESP32 TX
+set_location_assignment PIN_34 -to uart_rxd
+# AV sync
+set_location_assignment PIN_31 -to av_sync_n
+# AV video
+set_location_assignment PIN_32 -to av_video
+# keyboard data
+set_location_assignment PIN_84 -to ps2_data
+# keyboard clock
+set_location_assignment PIN_85 -to ps2_clk
+
+# AS6C1008 SRAM
+set_location_assignment PIN_39 -to sram_a[16]
+set_location_assignment PIN_43 -to sram_a[15]
+set_location_assignment PIN_46 -to sram_a[14]
+set_location_assignment PIN_50 -to sram_a[13]
+set_location_assignment PIN_52 -to sram_a[12]
+set_location_assignment PIN_54 -to sram_a[11]
+set_location_assignment PIN_58 -to sram_a[10]
+set_location_assignment PIN_60 -to sram_a[9]
+set_location_assignment PIN_65 -to sram_a[8]
+set_location_assignment PIN_67 -to sram_a[7]
+set_location_assignment PIN_69 -to sram_a[6]
+set_location_assignment PIN_71 -to sram_a[5]
+set_location_assignment PIN_73 -to sram_a[4]
+set_location_assignment PIN_75 -to sram_a[3]
+set_location_assignment PIN_77 -to sram_a[2]
+set_location_assignment PIN_83 -to sram_a[1]
+set_location_assignment PIN_28 -to sram_a[0]
+set_location_assignment PIN_42 -to sram_d[7]
+set_location_assignment PIN_44 -to sram_d[6]
+set_location_assignment PIN_49 -to sram_d[5]
+set_location_assignment PIN_51 -to sram_d[4]
+set_location_assignment PIN_53 -to sram_d[3]
+set_location_assignment PIN_55 -to sram_d[2]
+set_location_assignment PIN_59 -to sram_d[1]
+set_location_assignment PIN_66 -to sram_d[0]
+set_location_assignment PIN_68 -to sram_ce_n
+set_location_assignment PIN_70 -to sram_ce2
+set_location_assignment PIN_72 -to sram_oe_n
+set_location_assignment PIN_74 -to sram_we_n
+
+# SD card module (on the minimal VIA port B)
+set_location_assignment PIN_132 -to sd_cs
+set_location_assignment PIN_135 -to sd_mosi
+set_location_assignment PIN_137 -to sd_miso
+set_location_assignment PIN_141 -to sd_clk
+set_location_assignment PIN_143 -to sd_cd
+
+# Pull-ups so an unconnected serial line / keyboard reads idle-high
+# (there is no reset pin: press F10 on the PS/2 keyboard to reset)
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to uart_rxd
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to ps2_clk
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to ps2_data
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to sd_miso
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to sd_cd
