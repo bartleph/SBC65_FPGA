@@ -4,7 +4,11 @@
 --   Screen memory : 4K, row-major, 128 bytes per row (byte at row*128+col,
 --                   columns 80-127 unused), read through the second port.
 --   Characters    : 6x8 cells (5x7 font), codes $00-$7F normal, $80-$FF
---                   inverse video. Font bit 7 = leftmost pixel.
+--                   inverse video (made here, not stored in the font).
+--                   Font bit 7 = leftmost pixel.
+--   OSI mode      : osi='1': 64 columns of 8x8 cells and all 256 font
+--                   codes as stored (the OSI graphics live in font codes
+--                   $00-$1F and $80-$FF), no inverse, no cursor.
 --   Timing        : ntsc='0': PAL 50 Hz, 312 lines of 64 us, 32 text rows.
 --                   ntsc='1': NTSC 60 Hz, 262 lines of 63.56 us, 28 text
 --                   rows (an NTSC picture has no room for 32).
@@ -35,6 +39,7 @@ entity vdu_composite is
     cur_col  : in  unsigned(6 downto 0);
     cur_on   : in  std_logic;
     ntsc     : in  std_logic;
+    osi      : in  std_logic;
     sync_n   : out std_logic;
     video    : out std_logic
   );
@@ -44,11 +49,13 @@ architecture rtl of vdu_composite is
   constant H_SYNC  : natural := 235;    -- 4.7 us
   constant H_MAX   : natural := 3200;
   constant H_START : natural := 860;    -- first text pixel (~17.2 us)
+  constant H_START_OSI : natural := 796; -- 64 x 8 px is 128 clocks wider
   constant V_MAX   : natural := 312;
   constant V_BROAD : natural := 3;      -- lines 0-2: broad (vertical) sync
-  constant COLS    : natural := 80;
-  constant SLOT    : natural := 24;        -- clocks per character (6 px x 4)
-  constant TEXT_W  : natural := COLS * SLOT;
+  -- terminal: 80 columns of 24 clocks (6 px x 4); OSI: 64 of 32 (8 px x 4)
+  signal COLS      : natural range 0 to 80;
+  signal SLOT_LAST : natural range 0 to 31;    -- clocks per character - 1
+  signal H_FETCH   : natural range 0 to 1023;  -- h where slot 0 starts - 1
   -- PAL: 3200 clocks (64 us), 312 lines, text lines 40-295 (32 rows)
   -- NTSC: 3178 clocks (63.56 us), 262 lines, text lines 32-255 (28 rows)
   -- (the first text line must be a multiple of 8)
@@ -73,8 +80,12 @@ architecture rtl of vdu_composite is
   signal frame     : unsigned(4 downto 0) := (others => '0');
   signal is_cur    : boolean := false;
   signal col_c     : natural range 0 to 127 := 127;
-  signal sub_c     : natural range 0 to SLOT - 1 := 0;
+  signal sub_c     : natural range 0 to 31 := 0;
 begin
+
+  COLS      <= 64 when osi = '1' else 80;
+  SLOT_LAST <= 31 when osi = '1' else 23;
+  H_FETCH   <= H_START_OSI - 32 - 1 when osi = '1' else H_START - 24 - 1;
 
   H_TOTAL <= 3178 when ntsc = '1' else 3200;
   H_HALF  <= 1589 when ntsc = '1' else 1600;
@@ -92,14 +103,17 @@ begin
 
   -- character generator: address = character code * 8 + scan line.
   -- V_START is a multiple of 8, so the scan line is the low 3 bits of v.
-  font_addr <= scr_q & std_logic_vector(to_unsigned(v mod 8, 3));
+  -- (terminal mode: codes $80-$FF use the $00-$7F glyphs, inverted below)
+  font_addr <= (scr_q(7) and osi) & scr_q(6 downto 0) &
+               std_logic_vector(to_unsigned(v mod 8, 3));
 
   u_font : entity work.rom_font
     port map (clk => clk, addr => font_addr, dout => font_q);
 
   process (clk)
     variable col   : natural range 0 to 127;
-    variable sub   : natural range 0 to SLOT - 1;
+    variable sub   : natural range 0 to 31;
+    variable bits  : std_logic_vector(7 downto 0);
     variable ty    : natural range 0 to 511;
     variable in_ty : boolean;
   begin
@@ -138,11 +152,11 @@ begin
       -- at h = H_START - SLOT and fetches column 0; outside the text col=127.
       col := col_c;
       sub := sub_c;
-      if h = H_START - SLOT - 1 then
+      if h = H_FETCH then
         col_c <= 0;
         sub_c <= 0;
       elsif col_c /= 127 then
-        if sub_c = SLOT - 1 then
+        if sub_c = SLOT_LAST then
           sub_c <= 0;
           if col_c = COLS then col_c <= 127; else col_c <= col_c + 1; end if;
         else
@@ -159,11 +173,14 @@ begin
                     to_unsigned(col, 7) = cur_col and
                     cur_on = '1' and frame(4) = '1';
         elsif sub = 3 then
-          if is_cur then
-            next_bits <= not font_q;
-          else
-            next_bits <= font_q;
+          bits := font_q;
+          if scr_q(7) = '1' and osi = '0' then
+            bits := bits xor "11111100";              -- inverse (6 pixels)
           end if;
+          if is_cur then
+            bits := not bits;
+          end if;
+          next_bits <= bits;
         end if;
       end if;
 
@@ -171,7 +188,7 @@ begin
       if col >= 1 and col <= COLS and in_ty and sub mod 4 = 3 then
         shreg <= shreg(6 downto 0) & '0';
       end if;
-      if sub = SLOT - 1 then
+      if sub = SLOT_LAST then
         if col < COLS and in_ty then
           shreg <= next_bits;
         else

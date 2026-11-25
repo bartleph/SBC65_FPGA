@@ -9,8 +9,10 @@
 --   UK Shift+3 (pound sign) has no ASCII code and sends '#'.
 --   F10 resets the computer (reset_key pulse).
 --   F9 switches the screen between PAL and NTSC (mode_key pulse).
+--   Every key press / release is also given out raw (sc_*) for the OSI
+--   keyboard matrix at $DF00.
 --
---   Output is a 16-byte FIFO: "valid" is high while a byte is waiting on
+--   Output is an 8-byte FIFO: "valid" is high while a byte is waiting on
 --   "data"; pulse "ack" for one clock to take it.
 --
 --   Host-to-keyboard: when the keyboard sends AA (self-test passed) the
@@ -33,6 +35,12 @@ entity ps2_kbd is
     ack      : in  std_logic;
     reset_key : out std_logic;                      -- one-clock pulse on F10
     mode_key  : out std_logic;                      -- one-clock pulse on F9
+    -- raw key events for the OSI keyboard matrix (osi_kbd.vhd)
+    sc_valid  : out std_logic;                      -- one-clock pulse per key event
+    sc_code   : out std_logic_vector(7 downto 0);   -- set-2 code (E0/F0 removed)
+    sc_ext    : out std_logic;                      -- it had an E0 prefix
+    sc_brk    : out std_logic;                      -- '1' = key released
+    caps_on   : out std_logic;                      -- Caps Lock state
     -- diagnostics
     dbg_edges : out std_logic_vector(7 downto 0);   -- filtered clock edges seen
     dbg_last  : out std_logic_vector(7 downto 0);   -- last byte received (any frame)
@@ -130,10 +138,11 @@ architecture rtl of ps2_kbd is
   signal seen_aa        : std_logic := '0';
 
   -- FIFO
-  type fifo_t is array (0 to 15) of std_logic_vector(7 downto 0);
+  -- (8 bytes: plenty for typing, and half the logic of 16 - the FPGA is full)
+  type fifo_t is array (0 to 7) of std_logic_vector(7 downto 0);
   signal fifo           : fifo_t;
-  signal wp, rp         : unsigned(3 downto 0) := (others => '0');
-  signal cnt            : natural range 0 to 16 := 0;
+  signal wp, rp         : unsigned(2 downto 0) := (others => '0');
+  signal cnt            : natural range 0 to 8 := 0;
 begin
 
   dbg_edges <= std_logic_vector(n_edges);
@@ -142,6 +151,12 @@ begin
 
   ps2_clk  <= '0' when clk_oe = '1' else 'Z';
   ps2_data <= '0' when dat_oe = '1' else 'Z';
+
+  sc_valid <= '1' when code_rdy = '1' and code /= x"F0" and code /= x"E0" else '0';
+  sc_code  <= code;
+  sc_ext   <= ext;
+  sc_brk   <= brk;
+  caps_on  <= caps;
 
   valid <= '1' when cnt /= 0 else '0';
   data  <= fifo(to_integer(rp));
@@ -152,8 +167,8 @@ begin
     variable sh      : boolean;
     variable n_push  : natural range 0 to 3;
     variable p0, p1, p2 : std_logic_vector(7 downto 0);
-    variable new_cnt : natural range 0 to 16;
-    variable w       : unsigned(3 downto 0);
+    variable new_cnt : natural range 0 to 8;
+    variable w       : unsigned(2 downto 0);
     variable leds    : std_logic_vector(7 downto 0);
     variable fall    : boolean;
     variable par     : std_logic;
@@ -334,7 +349,7 @@ begin
         rp <= rp + 1;
         new_cnt := new_cnt - 1;
       end if;
-      if n_push /= 0 and cnt <= 16 - n_push then
+      if n_push /= 0 and cnt <= 8 - n_push then
         w := wp;
         fifo(to_integer(w)) <= p0;
         if n_push = 3 then

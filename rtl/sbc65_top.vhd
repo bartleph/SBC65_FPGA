@@ -12,17 +12,36 @@
 --                  Port B drives the SD card module:
 --                  PB0 CLK, PB1 DI (MOSI), PB2 CS (out)  PB6 CD, PB7 DO (in).
 --                  Other registers read $FF and ignore writes.
---     $C0A0        bank latch: bit 0 = 1 maps the Forth ROM at $A000
---                  (reads back as $FE / $FF; mirrored to $C0AF)
+--     $C0A0        bank latch (reads back; bits 7-3 read 1; mirrored to $C0AF)
+--                  bit 0 = 1 maps the Forth ROM at $A000
+--                  bit 1 = 1 OSI mode (see below)
+--                  bit 2 = OSI keyboard polarity: 0 = C1P style (a 0 selects
+--                          a row, a key down reads 0), 1 = both inverted
 --   $C100-$CFFF  ROM 3.75K (on-chip) - the SD card driver
 --   $D000-$DFFF  ROM 4K   > on-chip, contents from rom_image_pkg.vhd
 --   $E000-$FFFF  ROM 8K  /
+--
+--   OSI mode (bank latch bit 1) - for OSI BASIC programs that PEEK and POKE
+--   the screen and keyboard like a C2/C4:
+--   $D000-$D7FF  screen: 32 rows of 64 bytes, read / write, shown 64 x 32 on
+--                the composite output with the OSI character set. It is the
+--                terminal's own screen, so text the CPU prints through the
+--                ACIA appears there too (the terminal wraps at 64 columns).
+--   $DF00        OSI keyboard matrix from the PS/2 keyboard (osi_kbd.vhd)
+--                (the whole of $D800-$DFFF answers: even addresses the
+--                matrix, odd ones the last PS/2 key code - diagnostics)
+--   While a DOSX command runs (from fetching code at $D000-$DFFF until code
+--   is next run from RAM) $D000-$DFFF is the ROM, so DOS commands keep
+--   working without leaving OSI mode. BASIC and programs in RAM see the
+--   screen and keyboard.
+--   Diagnostics: $DF01 reads the last PS/2 key code pressed.
 --
 --   Screen + PS/2 keyboard form a built-in terminal: everything the CPU sends
 --   through the ACIA is shown on the composite output (terminal.vhd), and key
 --   presses arrive through the ACIA receiver alongside the serial port.
 --
--- M9K use: 24 ROM (3 x 8K) + 4 screen + 2 character set = 30 of 30.
+-- M9K use: 24 ROM (3 x 8K) + 4 screen + 2 character set = 30 of 30
+-- (OSI mode adds no memory blocks: it uses the terminal's screen RAM).
 --
 -- Clocking: everything runs from the 50 MHz board clock. The CPU clock is
 -- 50 MHz / CPU_DIV (default 50 -> 1 MHz, same as the real SBC). Memory and
@@ -79,6 +98,7 @@ architecture rtl of sbc65_top is
   signal cpu_clk   : std_logic := '0';
   signal bus_stb   : std_logic := '0';     -- mid-cycle strobe
   signal bus_stb_d : std_logic := '0';     -- one clock later (data mux)
+  signal bus_stb_d2: std_logic := '0';     -- two clocks later (screen reads)
 
   -- reset
   signal por_cnt   : unsigned(19 downto 0) := (others => '0');  -- ~21 ms
@@ -101,8 +121,13 @@ architecture rtl of sbc65_top is
   signal a_l       : std_logic_vector(15 downto 0) := (others => '0');
 
   -- selects
-  type sel_t is (S_SRAM, S_ACIA, S_BANK, S_VIA, S_ROMA, S_ROMC, S_ROMD, S_ROME, S_NONE);
+  type sel_t is (S_SRAM, S_ACIA, S_BANK, S_VIA, S_ROMA, S_ROMC, S_ROMD, S_ROME,
+                 S_VID, S_KBD, S_NONE);
   signal fbank : std_logic := '0';          -- 1: Forth ROM at $A000-$BFFF
+  signal osi   : std_logic := '0';          -- 1: OSI mode
+  signal kbinv : std_logic := '0';          -- OSI keyboard polarity
+  signal in_dx : std_logic := '0';          -- a DOSX command is running
+  signal osi_d : std_logic;                 -- this access goes to the OSI devices
   signal sel, sel_l : sel_t;
 
   -- memories
@@ -135,6 +160,24 @@ architecture rtl of sbc65_top is
 
   -- VDU / keyboard
   signal vdu_addr  : std_logic_vector(11 downto 0);
+  -- CPU access to the screen RAM (OSI mode): it takes port A for the clock
+  -- after the strobe, while the terminal is held for that clock
+  signal t_hold    : std_logic;
+  signal v_acc     : std_logic := '0';
+  signal v_we      : std_logic := '0';
+  signal v_addr    : std_logic_vector(11 downto 0) := (others => '0');
+  signal v_din     : std_logic_vector(7 downto 0) := (others => '0');
+  signal scr_we    : std_logic;
+  signal scr_addr  : std_logic_vector(11 downto 0);
+  signal scr_din   : std_logic_vector(7 downto 0);
+  signal scr_qa    : std_logic_vector(7 downto 0);
+  -- OSI keyboard
+  signal sc_valid, sc_ext, sc_brk, caps_on : std_logic;
+  signal sc_code   : std_logic_vector(7 downto 0);
+  signal okb_wr    : std_logic;
+  signal okb_q     : std_logic_vector(7 downto 0);
+  signal okb_code  : std_logic_vector(7 downto 0);   -- diagnostics
+  signal cur_on    : std_logic;                -- no cursor in OSI mode
   signal vdu_q     : std_logic_vector(7 downto 0);
   signal kb_valid  : std_logic;
   signal kb_data   : std_logic_vector(7 downto 0);
@@ -177,6 +220,7 @@ begin
     if rising_edge(clk50) then
       bus_stb   <= '0';
       bus_stb_d <= bus_stb;
+      bus_stb_d2 <= bus_stb_d;
       if div_cnt = CPU_DIV - 1 then
         div_cnt <= 0;
         cpu_clk <= '1';
@@ -212,7 +256,13 @@ begin
   cpu_rd_n <= not cpu_wr;
 
   ---------------------------------------------------------------- decode
-  sel <= S_SRAM when cpu_a(15) = '0' or cpu_a(15 downto 13) = "100" else
+  -- OSI mode: $D000-$DFFF is the screen / keyboard for code run from RAM.
+  -- Instruction fetches there, and everything while a DOSX command is
+  -- running (in_dx), still see the DOSX ROM.
+  osi_d <= '1' when osi = '1' and cpu_sync = '0' and in_dx = '0' else '0';
+  sel <= S_VID  when osi_d = '1' and cpu_a(15 downto 11) = "11010" else
+         S_KBD  when osi_d = '1' and cpu_a(15 downto 11) = "11011" else
+         S_SRAM when cpu_a(15) = '0' or cpu_a(15 downto 13) = "100" else
          S_SRAM when cpu_a(15 downto 13) = "101" and fbank = '0' else
          S_ROMA when cpu_a(15 downto 13) = "101"  else
          S_ACIA when cpu_a(15 downto 4) = x"C08" else
@@ -308,6 +358,19 @@ begin
       cd_s   <= cd_s(0) & sd_cd;
       if bus_stb = '1' and sel = S_BANK and cpu_wr = '1' then
         fbank <= cpu_do(0);
+        osi   <= cpu_do(1);
+        kbinv <= cpu_do(2);
+      end if;
+      -- DOS command in progress? Code run from $D000-$DFFF (DOSX) sets this,
+      -- code run from RAM ($0000-$BFFF: BASIC, user programs) clears it.
+      -- While it is set, $D000-$DFFF is the DOSX ROM even for the $E000 ROM
+      -- routines that DOSX calls (e.g. PRINT reading DOSX's message text).
+      if bus_stb = '1' and cpu_sync = '1' then
+        if cpu_a(15 downto 12) = x"D" then
+          in_dx <= '1';
+        elsif cpu_a(15 downto 14) /= "11" then
+          in_dx <= '0';
+        end if;
       end if;
       if bus_stb = '1' and sel = S_VIA and cpu_wr = '1' then
         case cpu_a(3 downto 0) is
@@ -318,6 +381,8 @@ begin
       end if;
       if rst = '1' then
         fbank    <= '0';
+        osi      <= '0';
+        kbinv    <= '0';
         via_orb  <= (others => '0');
         via_ddrb <= (others => '0');
       end if;
@@ -368,16 +433,42 @@ begin
       top_row  => t_top,
       cur_row  => t_row,
       cur_col  => t_col,
-      ntsc     => ntsc
+      ntsc     => ntsc,
+      osi      => osi,
+      hold     => t_hold
     );
+
+  ---------------------------------------------------------------- screen RAM
+  -- OSI address $D000 + row*64 + col is screen row "row" as you see it; the
+  -- terminal scrolls by moving top_row, so the RAM row is row + top_row.
+  t_hold <= '1' when bus_stb = '1' and sel = S_VID else '0';
+
+  process (clk50)
+  begin
+    if rising_edge(clk50) then
+      v_acc <= t_hold;
+      if t_hold = '1' then
+        v_we   <= cpu_wr;
+        v_addr <= std_logic_vector(unsigned(cpu_a(10 downto 6)) + t_top) &
+                  '0' & cpu_a(5 downto 0);
+        v_din  <= cpu_do;
+      end if;
+    end if;
+  end process;
+
+  scr_we   <= v_we   when v_acc = '1' else t_we;
+  scr_addr <= v_addr when v_acc = '1' else t_addr;
+  scr_din  <= v_din  when v_acc = '1' else t_din;
 
   u_scr : entity work.tdpram
     generic map (ABITS => 12)
     port map (clk => clk50,
-              we_a => t_we, addr_a => t_addr, din_a => t_din, dout_a => open,
+              we_a => scr_we, addr_a => scr_addr, din_a => scr_din, dout_a => scr_qa,
               addr_b => vdu_addr, dout_b => vdu_q);
 
   ---------------------------------------------------------------- VDU
+  cur_on <= not osi;
+
   u_vdu : entity work.vdu_composite
     port map (
       clk      => clk50,
@@ -386,8 +477,9 @@ begin
       top_row  => t_top,
       cur_row  => t_row,
       cur_col  => t_col,
-      cur_on   => '1',
+      cur_on   => cur_on,
       ntsc     => ntsc,
+      osi      => osi,
       sync_n   => av_sync_n,
       video    => av_video
     );
@@ -404,9 +496,33 @@ begin
       ack      => kb_ack,
       reset_key => kb_reset,
       mode_key  => kb_mode,
+      sc_valid  => sc_valid,
+      sc_code   => sc_code,
+      sc_ext    => sc_ext,
+      sc_brk    => sc_brk,
+      caps_on   => caps_on,
       dbg_edges => open,                  -- diagnostics not used (saves logic)
       dbg_last  => open,
       dbg_good  => open
+    );
+
+  ---------------------------------------------------------------- OSI keyboard
+  okb_wr <= '1' when bus_stb = '1' and sel = S_KBD and cpu_wr = '1' else '0';
+
+  u_okb : entity work.osi_kbd
+    port map (
+      clk      => clk50,
+      rst      => rst,
+      sc_valid => sc_valid,
+      sc_code  => sc_code,
+      sc_ext   => sc_ext,
+      sc_brk   => sc_brk,
+      caps_on  => caps_on,
+      wr_stb   => okb_wr,
+      din      => cpu_do,
+      inv      => kbinv,
+      dout     => okb_q,
+      last_code => okb_code
     );
 
   ---------------------------------------------------------------- read mux
@@ -421,7 +537,14 @@ begin
       elsif bus_stb_d = '1' then
         case sel_l is
           when S_SRAM => cpu_di <= sr_q;
-          when S_BANK => cpu_di <= "1111111" & fbank;
+          when S_BANK => cpu_di <= "11111" & kbinv & osi & fbank;
+          when S_KBD  =>
+            if cpu_a(0) = '1' then
+              cpu_di <= okb_code;            -- $DF01: diagnostics
+            else
+              cpu_di <= okb_q;
+            end if;
+          when S_VID  => null;               -- picked up one clock later
           when S_VIA  =>
             case a_l(3 downto 0) is
               when x"0"   => cpu_di <= via_irb;
@@ -435,6 +558,11 @@ begin
           when S_ACIA => null;               -- already captured
           when others => cpu_di <= x"FF";
         end case;
+      end if;
+      -- screen RAM (OSI mode): port A was used the clock after the strobe,
+      -- so its data is ready one clock later than the rest
+      if bus_stb_d2 = '1' and sel_l = S_VID then
+        cpu_di <= scr_qa;
       end if;
     end if;
   end process;
