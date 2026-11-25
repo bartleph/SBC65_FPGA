@@ -60,6 +60,17 @@ While it is on:
 - **Polarity:** with bit 2 = 0 (the default), a 0 in the row byte selects a row and a key that is down reads as 0, as on the Challenger 1P/Superboard. Bit 2 = 1 inverts both. If a program's keys don't respond, try `POKE 49312,6`.
 - Keys still reach the ACIA too, so `INPUT` works. Keys pressed during a game may be waiting when the program ends.
 
+### Example: Hangman
+
+`basic/HANGMAN_FPGA.BAS` is David Tewksbary's Hangman for the C1P, converted to OSI mode. It shows what an old program usually needs:
+
+- a row step of 64 instead of 32 (`LL=64`), with fixed screen addresses moved to the same row and column in the 64-byte layout
+- `POKE 49312,2` at the start and `POKE 49312,0` at the end
+- the C1P-only lines taken out: `DISK!"CA ..."` screen drivers, `POKE 55296` (C1P 32/64-column mode), and pokes into OS-65D's workspace
+- a subroutine (line 9000) that throws away keys waiting at the serial input before `INPUT`. Keys reach both `$DF00` and the ACIA.
+
+Its keyboard code needed no change, because the C1P matrix and polarity are the defaults here.
+
 ### OSI character set
 
 The 2K character ROM (`rtl/font_pkg.vhd`) holds the terminal's own letters at `$20-$7F` and the OSI graphics at `$00-$1F` and `$80-$FF`, taken from a dump of a Compukit UK101 AM2716 character generator (`rom/osi/AM2716_CHARGEN.BIN`), the UK101's copy of the OSI character set. Terminal mode makes its inverse video in logic, so it no longer needs those slots. The UK101 ROM stores bit 0 as the leftmost pixel, so it is built with `--mirror`:
