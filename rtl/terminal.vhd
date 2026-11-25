@@ -6,7 +6,8 @@
 -- and no address space are needed.
 --
 -- Supported (a practical VT100 / ANSI subset):
---   printable $20-$7E, $80-$FF   written at the cursor (with wrap at col 80)
+--   printable $20-$7E, $80-$FF   written at the cursor (with wrap at col 80,
+--                                or col 64 in OSI mode)
 --   CR $0D  LF $0A (scrolls)  BS $08  TAB $09  FF $0C (clear + home)
 --   ESC [ n A / B / C / D        cursor up / down / right / left
 --   ESC [ r ; c H  (or f)        cursor to row r, column c (1-based)
@@ -36,7 +37,10 @@ entity terminal is
     top_row  : out unsigned(4 downto 0);
     cur_row  : out unsigned(4 downto 0);
     cur_col  : out unsigned(6 downto 0);
-    ntsc     : in  std_logic                        -- '1': 28 rows, '0': 32
+    ntsc     : in  std_logic;                       -- '1': 28 rows, '0': 32
+    osi      : in  std_logic;                       -- '1': OSI mode, 64 columns
+    hold     : in  std_logic                        -- '1': pause one clock (the CPU
+                                                    -- uses the RAM port next clock)
   );
 end entity;
 
@@ -51,6 +55,7 @@ architecture rtl of terminal is
   signal inverse  : std_logic := '0';
   signal ntsc_d   : std_logic := '0';                  -- mode the rows are set for
   signal last_row : natural range 0 to 31;             -- bottom row: 27 or 31
+  signal last_col : natural range 0 to 79;             -- right column: 63 or 79
 
   signal pend     : std_logic := '0';                  -- byte being handled
   signal pbyte    : std_logic_vector(7 downto 0) := (others => '0');
@@ -106,6 +111,7 @@ architecture rtl of terminal is
 begin
 
   last_row <= 27 when ntsc_d = '1' else 31;
+  last_col <= 63 when osi = '1' else 79;
 
   ram_we   <= we_r;
   ram_addr <= addr_r;
@@ -132,7 +138,9 @@ begin
 
       cell := resize(row & col, 13);
 
-      if ntsc /= ntsc_d and state /= S_CLEAR and pend = '0' then
+      if hold = '1' then
+        null;                                        -- the CPU has the RAM port
+      elsif ntsc /= ntsc_d and state /= S_CLEAR and pend = '0' then
         ------------------------------------------------ PAL <-> NTSC (F9)
         ntsc_d <= ntsc;
         if ntsc = '1' then
@@ -184,10 +192,10 @@ begin
                 wrap_pend <= '0';
                 if col /= 0 then col <= col - 1; end if;
               when x"09" =>                            -- tab stops every 8
-                if col < 72 then
+                if col < last_col - 7 then
                   col <= (col(6 downto 3) + 1) & "000";
                 else
-                  col <= to_unsigned(79, 7);
+                  col <= to_unsigned(last_col, 7);
                 end if;
               when x"0C" =>
                 row <= (others => '0'); col <= (others => '0'); wrap_pend <= '0';
@@ -230,13 +238,13 @@ begin
               case b is
                 when x"41" => row <= sat_sub(row, n);              -- A
                 when x"42" => row <= sat_add(row, n, last_row);    -- B
-                when x"43" => col <= sat_add(col, n, 79);          -- C
+                when x"43" => col <= sat_add(col, n, last_col);          -- C
                 when x"44" => col <= sat_sub(col, n);              -- D
                 when x"48" | x"66" =>                              -- H f
                   if p1 = 0 then row <= (others => '0');
                   else row <= sat_add(to_unsigned(0, 5), p1 - 1, last_row); end if;
                   if p2 = 0 then col <= (others => '0');
-                  else col <= sat_add(to_unsigned(0, 7), p2 - 1, 79); end if;
+                  else col <= sat_add(to_unsigned(0, 7), p2 - 1, last_col); end if;
                 when x"4A" =>                                      -- J
                   if p1 = 0 then
                     clr_ptr <= cell; clr_end <= to_unsigned(4096, 13);
@@ -290,7 +298,7 @@ begin
             we_r   <= '1';
             addr_r <= phys(row & col, top);
             din_r  <= (b(7) or inverse) & b(6 downto 0);
-            if col = 79 then
+            if col >= last_col then
               wrap_pend <= '1';
             else
               col <= col + 1;

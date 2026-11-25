@@ -27,6 +27,7 @@ set_global_assignment -name VHDL_FILE rtl/mem_blocks.vhd
 set_global_assignment -name VHDL_FILE rtl/acia6850.vhd
 set_global_assignment -name VHDL_FILE rtl/vdu_composite.vhd
 set_global_assignment -name VHDL_FILE rtl/ps2_kbd.vhd
+set_global_assignment -name VHDL_FILE rtl/osi_kbd.vhd
 set_global_assignment -name VHDL_FILE rtl/terminal.vhd
 set_global_assignment -name VHDL_FILE rtl/sbc65_top.vhd
 set_global_assignment -name SDC_FILE sbc65.sdc

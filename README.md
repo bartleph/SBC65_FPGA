@@ -16,9 +16,9 @@ An OSI-style 65C02 single-board computer, running a ROM-resident OS-65D V3.3 DOS
 | `$C000-$C01F` | reads `$FF` (old disk PIA/ACIA, not fitted) |
 | `$C080-$C081` | 6850 ACIA console (mirrored to `$C08F`) |
 | `$C090-$C09F` | minimal VIA: ORB/IRB (`$C090`), DDRB (`$C092`) only. Port B: PB0 SD CLK, PB1 SD DI, PB2 SD CS (outputs), PB6 SD CD, PB7 SD DO (inputs). Other registers read `$FF`. |
-| `$C0A0` | bank latch, bit 0: 1 = Forth ROM at `$A000` (reads back too) |
+| `$C0A0` | bank latch (reads back too): bit 0 = 1 Forth ROM at `$A000`, bit 1 = 1 [OSI mode](#osi-mode), bit 2 = OSI keyboard polarity |
 | `$C100-$CFFF` | ROM (on-chip): SD card driver + `MO` command (`rom/SD.S`), `DA` disassembler (`rom/DIS.S`) |
-| `$D000-$DFFF` | ROM 4K (on-chip): DOSX extension commands |
+| `$D000-$DFFF` | ROM 4K (on-chip): DOSX extension commands (in [OSI mode](#osi-mode): screen RAM `$D000-$D7FF`, keyboard `$DF00`) |
 | `$E000-$FFFF` | ROM 8K (on-chip): OS-65D DOS |
 
 The cold start finds RAM up to `$BFFF`, so BASIC shows 34177 BYTES FREE and the assembler has about 34K for source.
@@ -35,6 +35,44 @@ The composite screen and PS/2 keyboard work as a terminal on the console: everyt
 - **Control codes:** CR, LF, BS, TAB, FF (clear), and the VT100 sequences `ESC[nA/B/C/D`, `ESC[r;cH`, `ESC[J` (0/1/2), `ESC[K` (0/1/2), `ESC[7m` / `ESC[0m`, `ESC c`. Others are ignored.
 - **Keyboard:** UK layout, Caps Lock starts ON (LED follows), arrow keys send `ESC [ A/B/C/D`, Shift+3 sends `#`. F10 resets the computer.
 - **F9** switches between PAL (50 Hz, 80 × 32) and NTSC (60 Hz, 80 × 28; an NTSC picture has no room for 32 rows). It starts as PAL at power-up and keeps its setting over an F10 reset.
+
+## OSI mode
+
+For OSI BASIC programs that PEEK and POKE the screen and keyboard as on a Challenger 2P/4P. Turn it on and off from BASIC:
+
+```
+POKE 49312,2     OSI mode on   ($C0A0 bit 1)
+POKE 49312,6     on, with the keyboard polarity inverted (bit 2, see below)
+POKE 49312,0     off
+```
+
+While it is on:
+
+| Address | What |
+|---|---|
+| `$D000-$D7FF` | Screen: 32 rows of 64 bytes (`53248 + row*64 + col`), read and write, shown as 64 × 32 on the TV in 8 × 8 cells with the OSI character set |
+| `$DF00` | OSI keyboard matrix (57088), worked by the PS/2 keyboard (it answers all through `$D800-$DFFF`) |
+
+- The OSI screen *is* the terminal's screen, so `PRINT` output and POKEs land on the same 64 × 32 picture, and PEEK reads back whatever is shown. The terminal wraps at 64 columns, and the cursor is hidden.
+- While a DOS command from DOSX runs (from when code at `$D000-$DFFF` is run until code is next run from RAM), `$D000-$DFFF` is the ROM, so DOS commands keep working without leaving OSI mode. BASIC and programs in RAM see the screen and keyboard. F10 switches OSI mode off.
+- Diagnostics: `PEEK(57089)` (`$DF01`) gives the last PS/2 key code pressed.
+- **Keyboard ($DF00):** write a row-select byte, then read which keys in that row are down. Key positions are the OSI keyboard's (as in MAME's OSI driver). SHIFT LOCK follows Caps Lock (on at power-up). The PS/2 keys used are the letters, digits and punctuation, Space, Enter (RETURN), Backspace (RUB OUT), Esc and Tab (ESC), Ctrl, both Shifts, `[` (LINE FEED) and `#` (REPEAT). PS/2 `-` is the OSI `:` key and PS/2 `=` is the OSI `-` key.
+- **Polarity:** with bit 2 = 0 (the default), a 0 in the row byte selects a row and a key that is down reads as 0, as on the Challenger 1P/Superboard. Bit 2 = 1 inverts both. If a program's keys don't respond, try `POKE 49312,6`.
+- Keys still reach the ACIA too, so `INPUT` works. Keys pressed during a game may be waiting when the program ends.
+
+### OSI character set
+
+The 2K character ROM (`rtl/font_pkg.vhd`) holds the terminal's own letters at `$20-$7F` and the OSI graphics at `$00-$1F` and `$80-$FF`, taken from a dump of a Compukit UK101 AM2716 character generator (`rom/osi/AM2716_CHARGEN.BIN`), the UK101's copy of the OSI character set. Terminal mode makes its inverse video in logic, so it no longer needs those slots. The UK101 ROM stores bit 0 as the leftmost pixel, so it is built with `--mirror`:
+
+```
+python tools/make_osi_font.py --mirror rtl/font_pkg.vhd rtl/font_pkg.vhd rom/osi/AM2716_CHARGEN.BIN
+```
+
+OSI mode uses no extra memory blocks.
+
+### Simulation
+
+`sim/osi/run_osi.sh` (GHDL + cc65) runs `osi_test.s` in place of the ROM. It checks PEEKs of printed text, POKE/PEEK (also through `(zp),Y` as BASIC does), PRINT in OSI mode, the `$DF00` matrix in both polarities, that DOSX code still reads its ROM, and that ROM routines called by DOSX (its message printing) do too. Then it grabs a frame (`sim/frame_osi_simulated.png`). `sim/osi/term/` draws a terminal-mode test picture with two copies of the VHDL, so they can be compared pixel by pixel. With this change the frames are identical.
 
 ## SD card "disks"
 
@@ -126,7 +164,7 @@ All set in `sbc65.qsf`.
 | `rtl/terminal.vhd` | on-screen terminal (VT100 subset, scrolling) |
 | `rtl/acia6850.vhd` | 6850-compatible ACIA (+ keyboard input path) |
 | `rtl/vdu_composite.vhd` | 80×32 text display, composite sync + video |
-| `rtl/ps2_kbd.vhd` | PS/2 scan codes → ASCII, 16-byte buffer |
+| `rtl/ps2_kbd.vhd` | PS/2 scan codes → ASCII, 8-byte buffer; raw key events for OSI mode |
 | `rtl/font_pkg.vhd` | 6×8 character set (Adafruit-GFX 5×7 font, BSD) |
 | `rtl/rom_image_pkg.vhd` | ROM contents, generated from `rom/ROM_FPGA48.bin` (run bin2vhd on `testrom/testrom.bin` for the test ROM) |
 | `rom/` | `ROM.S` + `DOSX.S` + `SD.S` + `DIS.S`, `rom.cfg`, and the built 32K images: `ROM_FPGA48.bin` (this FPGA, 48K layout) and `EEPROM_8000-FFFF_SD.bin` (the real SBC) |
