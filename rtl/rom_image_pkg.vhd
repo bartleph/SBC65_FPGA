@@ -722,16 +722,16 @@ package rom_image_pkg is
     x"00",x"66",x"6F",x"EB",x"C0",x"44",x"53",x"08",x"00",x"67",x"7F",x"2A",x"20",x"33",x"33",x"02",  -- $CC70
     x"00",x"66",x"6F",x"EB",x"C0",x"44",x"53",x"08",x"00",x"77",x"8F",x"2A",x"00",x"33",x"33",x"02",  -- $CC80
     x"00",x"66",x"6F",x"EB",x"C0",x"04",x"43",x"08",x"00",x"07",x"7F",x"2A",x"00",x"33",x"33",x"02",  -- $CC90
-    x"00",x"66",x"6F",x"EB",x"C0",x"04",x"43",x"08",x"00",x"07",x"7F",x"20",x"E3",x"D1",x"C9",x"3B",  -- $CCA0
-    x"F0",x"01",x"60",x"9C",x"7C",x"35",x"9C",x"E8",x"35",x"9C",x"7F",x"35",x"20",x"F4",x"CC",x"8D",  -- $CCB0
-    x"7D",x"35",x"F0",x"2D",x"20",x"F4",x"CC",x"85",x"13",x"20",x"F4",x"CC",x"85",x"12",x"A0",x"00",  -- $CCC0
-    x"20",x"F4",x"CC",x"91",x"12",x"C8",x"CC",x"7D",x"35",x"D0",x"F5",x"20",x"FD",x"CC",x"B0",x"07",  -- $CCD0
-    x"20",x"77",x"D4",x"A9",x"2E",x"80",x"05",x"EE",x"6E",x"35",x"A9",x"58",x"20",x"C7",x"E0",x"80",  -- $CCE0
-    x"BA",x"A9",x"1B",x"60",x"20",x"2E",x"D5",x"90",x"03",x"EE",x"E8",x"35",x"60",x"AD",x"7C",x"35",  -- $CCF0
-    x"8D",x"D2",x"35",x"AD",x"E8",x"35",x"8D",x"D3",x"35",x"20",x"2E",x"D5",x"CD",x"D3",x"35",x"D0",  -- $CD00
-    x"0F",x"20",x"2E",x"D5",x"CD",x"D2",x"35",x"D0",x"07",x"AD",x"7F",x"35",x"D0",x"02",x"18",x"60",  -- $CD10
-    x"38",x"60",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD20
-    x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD30
+    x"00",x"66",x"6F",x"EB",x"C0",x"04",x"43",x"08",x"00",x"07",x"7F",x"AD",x"7A",x"35",x"0D",x"7B",  -- $CCA0
+    x"35",x"D0",x"05",x"20",x"E3",x"D1",x"80",x"12",x"A2",x"00",x"A0",x"00",x"20",x"C6",x"D1",x"B0",  -- $CCB0
+    x"09",x"CA",x"D0",x"F8",x"88",x"D0",x"F5",x"A9",x"1B",x"60",x"C9",x"3B",x"F0",x"01",x"60",x"9C",  -- $CCC0
+    x"7C",x"35",x"9C",x"E8",x"35",x"9C",x"7F",x"35",x"20",x"10",x"CD",x"8D",x"7D",x"35",x"F0",x"2D",  -- $CCD0
+    x"20",x"10",x"CD",x"85",x"13",x"20",x"10",x"CD",x"85",x"12",x"A0",x"00",x"20",x"10",x"CD",x"91",  -- $CCE0
+    x"12",x"C8",x"CC",x"7D",x"35",x"D0",x"F5",x"20",x"19",x"CD",x"B0",x"07",x"20",x"77",x"D4",x"A9",  -- $CCF0
+    x"2E",x"80",x"05",x"EE",x"6E",x"35",x"A9",x"58",x"20",x"C7",x"E0",x"80",x"9E",x"A9",x"1B",x"60",  -- $CD00
+    x"20",x"2E",x"D5",x"90",x"03",x"EE",x"E8",x"35",x"60",x"AD",x"7C",x"35",x"8D",x"D2",x"35",x"AD",  -- $CD10
+    x"E8",x"35",x"8D",x"D3",x"35",x"20",x"2E",x"D5",x"CD",x"D3",x"35",x"D0",x"0F",x"20",x"2E",x"D5",  -- $CD20
+    x"CD",x"D2",x"35",x"D0",x"07",x"AD",x"7F",x"35",x"D0",x"02",x"18",x"60",x"38",x"60",x"FF",x"FF",  -- $CD30
     x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD40
     x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD50
     x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD60
