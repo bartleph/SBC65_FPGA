@@ -4580,6 +4580,85 @@ W_COLDINIT:
         .include "DIS.S"                  ; DA disassembler (after the SD driver)
 .endscope
 DADISP  = DIS::DADISP
+
+; ----------------------------------------------------------------------
+; HLGET - CHARACTER INPUT FOR HL (DOSX HLREC). PASSES EVERYTHING BACK
+; EXCEPT A MOS TECHNOLOGY CHECKSUM RECORD, WHICH IT LOADS ITSELF:
+;   ;LLHHLL<DATA>CCCC   LL BYTES AT $HHLL, CCCC = 16-BIT SUM OF ALL BYTES
+;   ;00...              END OF FILE: RETURNS ESC SO HL FINISHES
+; ONCE SOMETHING HAS LOADED, A QUIET LINE ALSO ENDS THE LOAD (INTEL TOO).
+; (THE FORMAT OF THE OSI ASSEMBLER'S CHECKSUM/OBJECT OUTPUT)
+; ----------------------------------------------------------------------
+M_P1    = $12               ; DOSX P1
+M_CKH   = $35E8             ; HIGH BYTE OF THE 16-BIT SUM (TY TEMP FT)
+
+HLGET:  lda DX_HIGL          ; NOTHING LOADED YET: WAIT AS LONG AS IT TAKES
+        ora DX_HIGH
+        bne @tw
+        jsr DX_SERIN
+        bra @c
+@tw:    ldx #0              ; AFTER A RECORD: ABOUT 2.5 S OF SILENCE AT 1 MHZ
+        ldy #0              ; ENDS THE LOAD (THE OSI ASSEMBLER WRITES NO ;00)
+@w:     jsr DX_KEYGET
+        bcs @c
+        dex
+        bne @w
+        dey
+        bne @w
+        lda #$1B
+        rts
+@c:     cmp #';'
+        beq @m
+        rts
+@m:     stz DX_CK
+        stz M_CKH
+        stz DX_BAD
+        jsr MSHB            ; BYTE COUNT
+        sta DX_LL
+        beq @eof
+        jsr MSHB
+        sta M_P1+1
+        jsr MSHB
+        sta M_P1
+        ldy #0
+@dl:    jsr MSHB
+        sta (M_P1),y
+        iny
+        cpy DX_LL
+        bne @dl
+        jsr MSCK
+        bcs @bad
+        jsr DX_HLRNG        ; NOTE LOWEST/HIGHEST ADDRESS
+        lda #'.'
+        bra @mk
+@bad:   inc DX_ERRS
+        lda #'X'
+@mk:    jsr DX_OUTCH
+        bra HLGET
+@eof:   lda #$1B            ; HL DRAINS THE REST AND REPORTS
+        rts
+
+MSHB:   jsr DX_SERHB        ; HEX BYTE, 16-BIT SUM IN CK/M_CKH
+        bcc @r
+        inc M_CKH
+@r:     rts
+
+MSCK:   lda DX_CK           ; C=1 IF THE CHECKSUM OR A HEX DIGIT WAS BAD
+        sta DX_TEML
+        lda M_CKH
+        sta DX_TEMH
+        jsr DX_SERHB
+        cmp DX_TEMH
+        bne @b
+        jsr DX_SERHB
+        cmp DX_TEML
+        bne @b
+        lda DX_BAD
+        bne @b
+        clc
+        rts
+@b:     sec
+        rts
         .res $D000 - *, $FF
 
 ; ======================================================================
@@ -4593,6 +4672,18 @@ DX_GETW   = DOSX::GETW
 DX_ATEND  = DOSX::ATEND
 DX_KEYCHK = DOSX::KEYCHK
 DX_SERIN  = DOSX::SERIN
+DX_SERHB  = DOSX::SERHB
+DX_KEYGET = DOSX::KEYGET
+DX_HIGL   = DOSX::HIGL
+DX_HIGH   = DOSX::HIGH
+DX_HLRNG  = DOSX::HLRNG
+DX_OUTCH  = DOSX::OUTCH
+DX_CK     = DOSX::CK
+DX_BAD    = DOSX::BAD
+DX_LL     = DOSX::LL
+DX_ERRS   = DOSX::ERRS
+DX_TEML   = DOSX::TEML
+DX_TEMH   = DOSX::TEMH
 
         .org $E000
 
