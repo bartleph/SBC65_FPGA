@@ -722,15 +722,15 @@ package rom_image_pkg is
     x"00",x"66",x"6F",x"EB",x"C0",x"44",x"53",x"08",x"00",x"67",x"7F",x"2A",x"20",x"33",x"33",x"02",  -- $CC70
     x"00",x"66",x"6F",x"EB",x"C0",x"44",x"53",x"08",x"00",x"77",x"8F",x"2A",x"00",x"33",x"33",x"02",  -- $CC80
     x"00",x"66",x"6F",x"EB",x"C0",x"04",x"43",x"08",x"00",x"07",x"7F",x"2A",x"00",x"33",x"33",x"02",  -- $CC90
-    x"00",x"66",x"6F",x"EB",x"C0",x"04",x"43",x"08",x"00",x"07",x"7F",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CCA0
-    x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CCB0
-    x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CCC0
-    x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CCD0
-    x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CCE0
-    x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CCF0
-    x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD00
-    x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD10
-    x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD20
+    x"00",x"66",x"6F",x"EB",x"C0",x"04",x"43",x"08",x"00",x"07",x"7F",x"20",x"E3",x"D1",x"C9",x"3B",  -- $CCA0
+    x"F0",x"01",x"60",x"9C",x"7C",x"35",x"9C",x"E8",x"35",x"9C",x"7F",x"35",x"20",x"F4",x"CC",x"8D",  -- $CCB0
+    x"7D",x"35",x"F0",x"2D",x"20",x"F4",x"CC",x"85",x"13",x"20",x"F4",x"CC",x"85",x"12",x"A0",x"00",  -- $CCC0
+    x"20",x"F4",x"CC",x"91",x"12",x"C8",x"CC",x"7D",x"35",x"D0",x"F5",x"20",x"FD",x"CC",x"B0",x"07",  -- $CCD0
+    x"20",x"77",x"D4",x"A9",x"2E",x"80",x"05",x"EE",x"6E",x"35",x"A9",x"58",x"20",x"C7",x"E0",x"80",  -- $CCE0
+    x"BA",x"A9",x"1B",x"60",x"20",x"2E",x"D5",x"90",x"03",x"EE",x"E8",x"35",x"60",x"AD",x"7C",x"35",  -- $CCF0
+    x"8D",x"D2",x"35",x"AD",x"E8",x"35",x"8D",x"D3",x"35",x"20",x"2E",x"D5",x"CD",x"D3",x"35",x"D0",  -- $CD00
+    x"0F",x"20",x"2E",x"D5",x"CD",x"D2",x"35",x"D0",x"07",x"AD",x"7F",x"35",x"D0",x"02",x"18",x"60",  -- $CD10
+    x"38",x"60",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD20
     x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD30
     x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD40
     x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",x"FF",  -- $CD50
@@ -840,7 +840,7 @@ package rom_image_pkg is
     x"4E",x"44",x"20",x"48",x"45",x"58",x"20",x"46",x"49",x"4C",x"45",x"20",x"28",x"45",x"53",x"43",  -- $D3D0
     x"20",x"45",x"4E",x"44",x"53",x"29",x"0D",x"0A",x"00",x"A9",x"FF",x"8D",x"78",x"35",x"8D",x"79",  -- $D3E0
     x"35",x"9C",x"7A",x"35",x"9C",x"7B",x"35",x"9C",x"6E",x"35",x"80",x"03",x"4C",x"C8",x"D4",x"20",  -- $D3F0
-    x"E3",x"D1",x"C9",x"1B",x"F0",x"F6",x"C9",x"03",x"F0",x"F2",x"C9",x"3A",x"D0",x"F1",x"9C",x"7C",  -- $D400
+    x"AB",x"CC",x"C9",x"1B",x"F0",x"F6",x"C9",x"03",x"F0",x"F2",x"C9",x"3A",x"D0",x"F1",x"9C",x"7C",  -- $D400
     x"35",x"9C",x"7F",x"35",x"20",x"2E",x"D5",x"8D",x"7D",x"35",x"20",x"2E",x"D5",x"85",x"13",x"20",  -- $D410
     x"2E",x"D5",x"85",x"12",x"20",x"2E",x"D5",x"8D",x"7E",x"35",x"A0",x"00",x"CC",x"7D",x"35",x"F0",  -- $D420
     x"0D",x"20",x"2E",x"D5",x"AE",x"7E",x"35",x"D0",x"02",x"91",x"12",x"C8",x"80",x"EE",x"20",x"2E",  -- $D430

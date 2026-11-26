@@ -1,7 +1,7 @@
 ;*****************************************************************
 ;* DOSX - OS-65D V3.3 ROM EXTENSION AT $D000-$DFFF  (ca65 source) *
 ;*                                                               *
-;* HL                 LOAD AN INTEL HEX FILE FROM THE CONSOLE    *
+;* HL                 LOAD INTEL HEX OR MOS (;) FROM THE CONSOLE *
 ;* CO S D [TT[-TT]]   COPY TRACKS FROM DRIVE S TO DRIVE D        *
 ;* RN OLD NEW         RENAME A FILE                              *
 ;* DI                 DIRECTORY SORTED BY TRACK + FREE TRACKS    *
@@ -675,7 +675,7 @@ HLCMD:  jsr PRINT
         stz ERRS
         bra HLREC
 HLESC:  jmp HLEND
-HLREC:  jsr SERIN
+HLREC:  jsr HLGET           ; ROM.S: TAKES MOS ';' RECORDS ITSELF
         cmp #$1B
         beq HLESC
         cmp #$03
