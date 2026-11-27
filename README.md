@@ -127,6 +127,10 @@ hfe2sd -l \\.\PhysicalDriveN             (list the slots)
 
 `-a` and `-l` also work on an image file. They only touch a card that hfe2sd labelled ("SBC65 SD CARD" in block 0), so a wrong disk number is refused. Cards made before this version have no label: make them once more without `-a`. If Windows offers to format or initialise the card, click Cancel (initialising would overwrite the label).
 
+## DOS commands
+
+The full list of ROM DOS commands, with what each one does, is in [DOS_COMMANDS.md](DOS_COMMANDS.md).
+
 ## DA - 65C02 disassembler
 
 `rom/DIS.S`, in the `$C100` ROM after the SD driver.
@@ -186,6 +190,7 @@ All set in `sbc65.qsf`.
 | `tools/optab.py`, `tools/gentab.py` | W65C02S opcode map and the generator for the `DIS.S` tables |
 | `tools/make_font6_pkg.py` | rebuilds `font_pkg.vhd` from Adafruit `glcdfont.c` |
 | `tools/make_font_pkg.py` | the old 8×8 font (for the 64-column version) |
+| `DOS_COMMANDS.md` | reference list of the ROM DOS commands |
 | `sim/` | GHDL testbenches and run script |
 
 ## Building and running
