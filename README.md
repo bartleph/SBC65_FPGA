@@ -137,6 +137,12 @@ A SuperCalc 2 style spreadsheet in 65C02 assembler, for this FPGA version. It ha
 
 ![CALC65](calc65/calc65_demo.png)
 
+## DB65 database
+
+A dBASE II style database in 65C02 assembler, for this FPGA version. You type commands at a dot prompt: CREATE, USE, APPEND, EDIT, BROWSE, LIST/DISPLAY ... FOR, REPORT, REPLACE, DELETE/PACK, COUNT/SUM, SORT and more. Fields are text, numbers, dates and Yes/No, and expressions work as in dBASE. Each database is an ordinary DOS file of up to 32 tracks, read and written a track at a time. Load `db65/DB65.HEX` with `HL`, then type `GO 3B00`. See [db65/README.md](db65/README.md).
+
+![DB65](db65/db65_demo.png)
+
 ## DA - 65C02 disassembler
 
 `rom/DIS.S`, in the `$C100` ROM after the SD driver.
@@ -198,6 +204,7 @@ All set in `sbc65.qsf`.
 | `tools/make_font_pkg.py` | the old 8×8 font (for the 64-column version) |
 | `DOS_COMMANDS.md` | reference list of the ROM DOS commands |
 | `calc65/` | CALC65 spreadsheet: source, `CALC65.HEX`, guide, emulator test tools |
+| `db65/` | DB65 database: source, `DB65.HEX`, guide, emulator test tools |
 | `sim/` | GHDL testbenches and run script |
 
 ## Building and running
