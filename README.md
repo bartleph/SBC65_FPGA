@@ -131,6 +131,12 @@ hfe2sd -l \\.\PhysicalDriveN             (list the slots)
 
 The full list of ROM DOS commands, with what each one does, is in [DOS_COMMANDS.md](DOS_COMMANDS.md).
 
+## CALC65 spreadsheet
+
+A SuperCalc 2 style spreadsheet in 65C02 assembler, for this FPGA version. It has 26 × 128 cells, 12-digit decimal arithmetic, formulas and functions (SUM, AVERAGE, MIN, MAX, COUNT, ABS, INT, IF), and replicate, insert and delete. Sheets are saved to disk by name. Load `calc65/CALC65.HEX` with `HL`, then type `GO 4000`. See [calc65/README.md](calc65/README.md).
+
+![CALC65](calc65/calc65_demo.png)
+
 ## DA - 65C02 disassembler
 
 `rom/DIS.S`, in the `$C100` ROM after the SD driver.
@@ -191,6 +197,7 @@ All set in `sbc65.qsf`.
 | `tools/make_font6_pkg.py` | rebuilds `font_pkg.vhd` from Adafruit `glcdfont.c` |
 | `tools/make_font_pkg.py` | the old 8×8 font (for the 64-column version) |
 | `DOS_COMMANDS.md` | reference list of the ROM DOS commands |
+| `calc65/` | CALC65 spreadsheet: source, `CALC65.HEX`, guide, emulator test tools |
 | `sim/` | GHDL testbenches and run script |
 
 ## Building and running
