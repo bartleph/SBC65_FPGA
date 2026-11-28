@@ -73,6 +73,10 @@ While it is on:
 
 Its keyboard code needed no change, because the C1P matrix and polarity are the defaults here.
 
+### Example: Space Invaders
+
+`games/invaders/` is a Space Invaders clone in machine code for OSI mode. Load `INVADERS.HEX` with `HL`, then type `GO 4000`. See [games/invaders/README.md](games/invaders/README.md).
+
 ### OSI character set
 
 The 2K character ROM (`rtl/font_pkg.vhd`) holds the terminal's own letters at `$20-$7F` and the OSI graphics at `$00-$1F` and `$80-$FF`, taken from a dump of a Compukit UK101 AM2716 character generator (`rom/osi/AM2716_CHARGEN.BIN`), the UK101's copy of the OSI character set. Terminal mode makes its inverse video in logic, so it no longer needs those slots. The UK101 ROM stores bit 0 as the leftmost pixel, so it is built with `--mirror`:
@@ -207,6 +211,7 @@ All set in `sbc65.qsf`.
 | `DOS_COMMANDS.md` | reference list of the ROM DOS commands |
 | `calc65/` | CALC65 spreadsheet: source, `CALC65.HEX`, guide, emulator test tools |
 | `db65/` | DB65 database: source, `DB65.HEX`, guide, emulator test tools |
+| `games/invaders/` | Space Invaders for OSI mode: source (ca65 and OSI Assembler), `INVADERS.HEX` |
 | `sim/` | GHDL testbenches and run script |
 
 ## Building and running
