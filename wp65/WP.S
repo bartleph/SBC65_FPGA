@@ -3,10 +3,10 @@
 ;        UNDER THE OS-65D V3.3 ROM DOS.  WORDSTAR-STYLE KEYS.
 ;
 ; BUILD:  ca65 --cpu 65C02 WP.S -o WP.o ; ld65 -C wp.cfg WP.o -o WP.BIN
-; RUN:    HL (WP65.HEX), GO 3B00.  SAVE: MS 3B00 69FF WP65, THEN MR WP65
+; RUN:    HL (WP65.HEX), GO 3B00.  SAVE: MS 3B00 6DFF WP65, THEN MR WP65
 ;
-; MEMORY: $3B00 PROGRAM, $7100 TRACK BUFFER (AND DIRECTORY), $7900
-;         SCREEN COPY, $8300-$BFFF THE TEXT.  ZERO PAGE $30-$AF.
+; MEMORY: $3B00 PROGRAM, $7600 TRACK BUFFER (AND DIRECTORY), $7E00
+;         SCREEN COPY, $8800-$BFFF THE TEXT.  ZERO PAGE $30-$AF.
 ;
 ; THE TEXT IS A "GAP BUFFER": TEXT BEFORE THE CURSOR AT TBEG..GS-1,
 ; TEXT AFTER IT AT GE..TEND-1.  A CR ENDS A LINE (OR A PARAGRAPH IN A
@@ -25,11 +25,11 @@ CMDBUF  = $2E1E
 DRIVE   = $265C             ; THE DOS'S CURRENT DRIVE (1-4 = A-D)
 KWTAB   = $0284             ; BASIC'S KEYWORDS (WHEN BASIC HAS BEEN RUN)
 
-TRKBUF  = $7100             ; ONE TRACK (2K)
+TRKBUF  = $7600             ; ONE TRACK (2K)
 DIRB    = TRKBUF            ; THE DIRECTORY IS READ THERE TOO
-SHADOW  = $7900             ; WHAT IS ON THE SCREEN, 80 x 32
+SHADOW  = $7E00             ; WHAT IS ON THE SCREEN, 80 x 32
 MAXLN   = 32
-TBEG    = $8300
+TBEG    = $8800
 TEND    = $C000
 
 ZPBASE  = $30
@@ -1985,7 +1985,8 @@ HELPTXT:
         .byte "  .LM n  .RM n  left/right margin    .PL n  page length",$0A
         .byte "  .HE text  .FO text  header/footer (# = page number)",$0A
         .byte "  .CE  centre the next line   .JU / .NJ  justify on/off",$0A
-        .byte "  .PA  new page   .SP n  blank lines   .LS n  line spacing",$0A,$0A
+        .byte "  .PA  new page   .SP n  blank lines   .LS n  line spacing",$0A
+        .byte "  .DF B:PEOPLE  mail merge: once for each record, &NAME& = a field",$0A,$0A
         .byte "Press any key",0
 
         .include "WPFILE.S"
