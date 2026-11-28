@@ -3,10 +3,10 @@
 ;        UNDER THE OS-65D V3.3 ROM DOS.  WORDSTAR-STYLE KEYS.
 ;
 ; BUILD:  ca65 --cpu 65C02 WP.S -o WP.o ; ld65 -C wp.cfg WP.o -o WP.BIN
-; RUN:    HL (WP65.HEX), GO 3B00.  SAVE: MS 3B00 68FF WP65, THEN MR WP65
+; RUN:    HL (WP65.HEX), GO 3B00.  SAVE: MS 3B00 69FF WP65, THEN MR WP65
 ;
-; MEMORY: $3B00 PROGRAM, $7000 TRACK BUFFER (AND DIRECTORY), $7800
-;         SCREEN COPY, $8200-$BFFF THE TEXT.  ZERO PAGE $30-$AF.
+; MEMORY: $3B00 PROGRAM, $7100 TRACK BUFFER (AND DIRECTORY), $7900
+;         SCREEN COPY, $8300-$BFFF THE TEXT.  ZERO PAGE $30-$AF.
 ;
 ; THE TEXT IS A "GAP BUFFER": TEXT BEFORE THE CURSOR AT TBEG..GS-1,
 ; TEXT AFTER IT AT GE..TEND-1.  A CR ENDS A LINE (OR A PARAGRAPH IN A
@@ -22,13 +22,14 @@ INBUF   = $E1
 CMDPOS  = $2CE5
 CMDLEN  = $2CED
 CMDBUF  = $2E1E
+DRIVE   = $265C             ; THE DOS'S CURRENT DRIVE (1-4 = A-D)
 KWTAB   = $0284             ; BASIC'S KEYWORDS (WHEN BASIC HAS BEEN RUN)
 
-TRKBUF  = $7000             ; ONE TRACK (2K)
+TRKBUF  = $7100             ; ONE TRACK (2K)
 DIRB    = TRKBUF            ; THE DIRECTORY IS READ THERE TOO
-SHADOW  = $7800             ; WHAT IS ON THE SCREEN, 80 x 32
+SHADOW  = $7900             ; WHAT IS ON THE SCREEN, 80 x 32
 MAXLN   = 32
-TBEG    = $8200
+TBEG    = $8300
 TEND    = $C000
 
 ZPBASE  = $30
@@ -64,6 +65,9 @@ NLINES: .res 1
 ROWS:   .res 1              ; TEXT ROWS (NLINES-1)
 CPOS:   .res 1
 FNAME:  .res 16
+FDRV:   .res 1              ; ITS DRIVE (1-4), RIGHT AFTER FNAME
+ODRV:   .res 1              ; THE DRIVE WHEN WP65 STARTED
+DEFDRV: .res 1              ; THE DRIVE FOR NAMES WITHOUT ONE (^KF)
 FTRK0:  .res 1
 FTRKN:  .res 1
 CUR:    .res 2              ; CURSOR OFFSET
@@ -123,6 +127,10 @@ START:  tsx
         sta ROWS
         stz PBK
         stz FNAME
+        lda DRIVE
+        sta ODRV
+        sta FDRV
+        sta DEFDRV
         stz RESTN
         stz FLAST
         stz FINDS
@@ -138,7 +146,9 @@ START:  tsx
         jmp MAIN
 M_HELLO: .byte "WP65 - ^J for help, ^KL to load a file, ^KX to save and exit",0
 
-QUIT:   jsr CLS
+QUIT:   lda ODRV            ; THE DOS GETS ITS OWN DRIVE BACK
+        jsr SETDRV
+        jsr CLS
         ldx #ZPSIZE-1
 @z:     lda ZPSAVE,x
         sta ZPBASE,x
@@ -995,7 +1005,12 @@ STATUSROW:
         sta MP+1
         jsr RSTR
         bra @ty
-@nm:    lda #<FNAME
+@nm:    lda FDRV            ; B:NAME
+        ora #$40
+        jsr RCH
+        lda #':'
+        jsr RCH
+        lda #<FNAME
         sta MP
         lda #>FNAME
         sta MP+1
@@ -1876,7 +1891,20 @@ K_TYPE: jsr ASKKEY
         sta MODF
         jsr FULLSCR
 @x:     jmp MAIN
-K_FILES: jsr CLS            ; THE DOS DIRECTORY
+K_FILES: jsr ASKKEY         ; THE DOS DIRECTORY OF A DRIVE
+        .byte "Directory of which drive?  A B C D  (RETURN = this one)",0
+        cmp #$0D
+        bne @l
+        lda DEFDRV
+        bra @s
+@l:     sec
+        sbc #'A'-1
+        beq @x
+        cmp #5
+        bcs @x
+        sta DEFDRV          ; (IT BECOMES THE DRIVE FOR NAMES WITHOUT ONE)
+@s:     jsr SETDRV
+        jsr CLS
         lda #<DICMD
         sta MP
         lda #>DICMD
@@ -1887,7 +1915,7 @@ K_FILES: jsr CLS            ; THE DOS DIRECTORY
         .byte 13,10,"Press any key",0
         jsr GETKEY
         jsr FULLSCR
-        jmp MAIN
+@x:     jmp MAIN
 DICMD:  .byte "DI",13,0
 
 ; ^KZ: SCREEN LINES (SAVE THE PROGRAM AFTERWARDS TO KEEP IT)
@@ -1951,7 +1979,7 @@ HELPTXT:
         .byte "       ^QB ^QK go to the begin/end of the block",$0A
         .byte "Files  ^KL load  ^KR read a file in here  ^KS save  ^KX save+exit",$0A
         .byte "       ^KQ quit  ^KT type: Document / Assembler / BASIC  ^KF files",$0A
-        .byte "       ^KZ screen lines (24 or 32)",$0A
+        .byte "       ^KZ screen lines.  A file name can start with its drive: B:NAME",$0A
         .byte "Print  ^KP preview on the screen, or print",$0A,$0A
         .byte "Print commands (on their own line in a document):",$0A
         .byte "  .LM n  .RM n  left/right margin    .PL n  page length",$0A

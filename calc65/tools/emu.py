@@ -2,6 +2,8 @@ import pyte
 from py65.devices.mpu65c02 import MPU
 from py65.memory import ObservableMemory
 class Calc:
+    @property
+    def files(s): return s.fd[s.mem[0x265C]]
     def __init__(s, lines=24, binf='CALC.BIN', lbl='CALC.lbl'):
         s.lab={}
         for l in open(lbl):
@@ -17,7 +19,7 @@ class Calc:
         # caller: JSR $4000 then loop
         s.mem[0x300:0x306]=[0x20,0x00,0x40,0x4C,0x03,0x03]
         s.cpu=MPU(memory=s.mem); s.cpu.pc=0x300; s.cpu.sp=0xF0
-        s.files={}; s.errvec=None; s.exited=False
+        s.fd={d:{} for d in (1,2,3,4)}; s.mem[0x265C]=1; s.errvec=None; s.exited=False
         s.raw=s.lab['RAWKEY']
     def rts(s):
         c=s.cpu; lo=s.mem[0x100+((c.sp+1)&255)]; hi=s.mem[0x100+((c.sp+2)&255)]; c.sp=(c.sp+2)&255; c.pc=((hi<<8)|lo)+1
@@ -43,6 +45,10 @@ class Calc:
                 d=d+bytes((-len(d))%256)
                 for i,x in enumerate(d): s.mem[a+i]=x
                 s.rts()
+            elif t[0]=='SE':
+                s.mem[0x265C]=ord(t[1][0])-64; s.rts()
+            elif t[0]=='DI':
+                s.stream.feed(('\r\nDIRECTORY '+chr(64+s.mem[0x265C])+'\r\n'+''.join(n+'\r\n' for n in s.files)).encode()); s.rts()
             else: s.doserr()
             return True
         if pc==0xF0D2:

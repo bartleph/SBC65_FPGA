@@ -717,6 +717,7 @@ FTITLE: ldx #1
         ldy #60
         inx
         jsr GOTO
+        jsr PRDBDRV
         ldx #0
 @n:     lda DBNAME,x
         beq @r

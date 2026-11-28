@@ -23,6 +23,8 @@ class Disk:
         d[i*16:i*16+16]=name.ljust(14).encode()+bytes([bcd(a),bcd(b)])
         s.t[(12,1)]=bytes(d[:256]); s.t[(12,2)]=bytes(d[256:])
 class DB:
+    @property
+    def disk(s): return s.disks[s.mem[0x265C]]
     def __init__(s, lines=24, binf='DB.BIN', lbl='DB.lbl', org=0x3B00):
         s.lab={}
         for l in open(lbl):
@@ -36,7 +38,7 @@ class DB:
         for i,x in enumerate(b): s.mem[org+i]=x
         s.mem[0x400:0x406]=[0x20,org&255,org>>8,0x4C,0x03,0x04]
         s.cpu=MPU(memory=s.mem); s.cpu.pc=0x400; s.cpu.sp=0xF0
-        s.disk=Disk(); s.errvec=None; s.exited=False; s.dos=[]
+        s.disks={d:Disk() for d in (1,2,3,4)}; s.mem[0x265C]=1; s.errvec=None; s.exited=False; s.dos=[]
         s.raw=s.lab['RAWKEY']
         s.reads=0; s.writes=0
     def rts(s):
@@ -88,6 +90,10 @@ class DB:
                 s.disk.t[(start,2)]=bytes(s.mem[a:a+7*256])
                 for k in range(1,ntr): s.disk.t[(start+k,1)]=bytes(s.mem[(a+((8*k-1)*256))&0xFFFF:][:2048] if True else b'')
                 s.rts(); return True
+            if w[0]=='SE':
+                d=ord(w[1][0])-64
+                if not 1<=d<=4: return s.err(6) or True
+                s.mem[0x265C]=d; s.rts(); return True
             if w[0]=='DI':
                 s.out('\nDIRECTORY\n')
                 for i,n,x,y in sorted(s.disk.dir(),key=lambda e:e[2]): s.out('%-14s %02d-%02d\n'%(n,x,y))
