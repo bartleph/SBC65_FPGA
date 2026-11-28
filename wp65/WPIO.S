@@ -309,6 +309,23 @@ DIRSEC: pha                 ; READ DIRECTORY SECTOR A+1 TO DIRB+A*256
 DIRCA:  .byte "CA ",0
 DIRTS:  .byte "=12,",0
 
+; SELECT DRIVE A (1-4 = A-D) WITH THE DOS "SE" COMMAND, IF IT ISN'T ALREADY
+SETDRV: cmp DRIVE
+        beq @r
+        pha
+        lda #<SECMD
+        sta MP
+        lda #>SECMD
+        sta MP+1
+        jsr CMDSTART
+        pla
+        ora #$40
+        jsr CMDCH
+        jsr CMDEND
+        jmp DOSCALL
+@r:     rts
+SECMD:  .byte "SE ",0
+
 BCDBIN: pha                 ; BCD A -> BINARY
         lsr a
         lsr a

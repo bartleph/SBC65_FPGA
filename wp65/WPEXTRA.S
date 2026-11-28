@@ -559,7 +559,25 @@ K_PRINT: jsr ASKKEY
         beq @go
         jmp MAIN
 @go:    stx PMODE
-        lda #5              ; THE DEFAULTS
+        stz VLINES
+        stz MERGE
+        lda FTYPE           ; A DOCUMENT WITH .DF: A MAIL MERGE
+        bne @one
+        jsr PSCAN
+@one:   jsr CLS
+        lda MERGE
+        bne @mm
+        jsr PPASS           ; ONCE
+        jmp PDONE
+@mm:    jsr NEXTREC         ; ONCE FOR EACH RECORD
+        bcc :+
+        jmp PDONE
+:
+        jsr PPASS
+        bra @mm
+
+; ONE PRINTING OF THE WHOLE TEXT, FROM THE DEFAULTS
+PPASS:  lda #5              ; THE DEFAULTS
         sta LM
         lda #75
         sta RM
@@ -580,9 +598,10 @@ K_PRINT: jsr ASKKEY
         sta PAGE
         stz PAGE+1
         stz INPAGE
-        stz VLINES
         stz OLEN
         stz WLEN
+        stz SUBN
+        stz SUBI
         lda FTYPE           ; A LISTING: NAME AND PAGE AT THE TOP
         beq @doc
         stz LM
@@ -605,7 +624,6 @@ K_PRINT: jsr ASKKEY
         iny
         bra @n3
 @doc:   jsr SETPW
-        jsr CLS
         stz OFF
         stz OFF+1
         stz POFF
@@ -617,9 +635,10 @@ K_PRINT: jsr ASKKEY
         jsr FLUSHW          ; THE LAST LINE
         jsr ENDLINE
         lda INPAGE          ; AND THE LAST PAGE
-        beq PDONE
+        beq @r
         jsr FILLPG
-        jsr PBOT
+        jmp PBOT
+@r:     rts
 PDONE:  ldx MAINSP          ; (ESC COMES HERE TOO)
         txs
         lda PMODE
@@ -665,6 +684,7 @@ FORMAT:
         cmp #'.'
         bne @nd
         lda FTYPE
+        ora SUBF            ; (NOT A "." FROM A FIELD)
         bne @nd
         jsr ISDOT
         bcs @nd
@@ -726,11 +746,29 @@ FORMAT:
         inc OLEN
         jmp @l
 
-PGET:   jsr ITGET
+PGET:   stz SUBF
+        ldx SUBI            ; A FIELD'S TEXT BEING PRINTED?
+        cpx SUBN
+        bcs @t
+        lda VALB,x
+        inc SUBI
+        inc SUBF
+        clc
+        rts
+@t:     jsr ITGET
         bcs @r
         inc POFF
-        bne @r
+        bne @1
         inc POFF+1
+@1:     cmp #'&'            ; &FIELD& IN A MAIL MERGE
+        bne @ok
+        ldx MERGE
+        beq @ok
+        jsr FIELDREF
+        bcs @amp
+        bra PGET            ; (ITS TEXT, WHICH MAY BE EMPTY)
+@amp:   lda #'&'
+@ok:    clc
 @r:     rts
 
 ; A WORD IS COMPLETE: ADD IT TO THE LINE (PRINTING THE LINE IF FULL)
@@ -1060,7 +1098,7 @@ ISDOT:  lda POFF
         rts
 @no:    sec
         rts
-DOTTAB: .byte "LMRMPLLSHEFOCEPASPJUNJNFFI",0
+DOTTAB: .byte "LMRMPLLSHEFOCEPASPJUNJNFFIDF",0
 ; DO IT: THE REST OF THE LINE INTO LB2 FIRST
 DOTCMD: stx GI
         jsr FLUSHW
@@ -1174,8 +1212,10 @@ DOTCMD: stx GI
         lda #1              ; .NF
         sta NF
         rts
-@12:    stz NF              ; .FI
-        rts
+@12:    cpx #12
+        bne @13
+        stz NF              ; .FI
+@13:    rts                 ; (.DF WAS DEALT WITH BEFORE PRINTING)
 ; A NUMBER IN LB2 FROM TI -> TMP (0 IF NONE, 255 AT MOST)
 DOTNUM: stz TMP
         ldx TI
@@ -1208,3 +1248,334 @@ DOTNUM: stz TMP
 @big:   lda #255
         sta TMP
 @r:     rts
+
+;=====================================================================
+; MAIL MERGE.  A DOCUMENT WITH A LINE  .DF B:PEOPLE  IS PRINTED ONCE FOR
+; EACH RECORD OF THAT DB65 DATABASE (DELETED ONES ARE LEFT OUT), WITH
+; &NAME& REPLACED BY THE RECORD'S NAME FIELD, AND SO ON.
+;
+; THE DB65 FILE: TRACK 0 BYTES 0-511 THE HEADER ("DB65", +4 RECORD
+; COUNT, +6 RECORD LENGTH, +8 FIELD COUNT, +16 FIELDS OF 16 BYTES:
+; NAME 11, TYPE, WIDTH, DECIMALS, OFFSET 2), THEN THE RECORDS, WHICH
+; NEVER CROSS A TRACK.  EACH IS A DELETE FLAG AND THE FIELDS AS TEXT.
+;=====================================================================
+MHDR    = SHADOW            ; (THE SCREEN COPY IS FREE WHILE PRINTING)
+MREC    = SHADOW+512
+MRECMAX = 1024
+        .bss
+MERGE:  .res 1
+SUBF:   .res 1              ; THE CHARACTER CAME FROM A FIELD
+SUBI:   .res 1
+SUBN:   .res 1
+VALB:   .res 130            ; A FIELD'S TEXT
+MLEFT:  .res 2              ; RECORDS STILL TO READ
+MTRK:   .res 1
+MOFF:   .res 2
+MNAME:  .res 12
+        .code
+
+; LOOK FOR A .DF LINE; IF THERE IS ONE, OPEN THE DATABASE
+PSCAN:  stz OFF
+        stz OFF+1
+        jsr ITSET
+@line:  jsr ITGET           ; THE START OF A LINE
+        bcs @none
+        cmp #'.'
+        bne @skip
+        jsr ITGET
+        bcs @none
+        jsr UPPER
+        cmp #'D'
+        bne @skip
+        jsr ITGET
+        bcs @none
+        jsr UPPER
+        cmp #'F'
+        beq @df
+@skip:  cmp #CR             ; TO THE NEXT LINE
+        beq @line
+        jsr ITGET
+        bcs @none
+        bra @skip
+@none:  rts
+@df:    ldx #0              ; THE NAME INTO LBUF
+@n:     jsr ITGET
+        bcs @e
+        cmp #CR
+        beq @e
+        cpx #60
+        bcs @n
+        sta LBUF,x
+        inx
+        bra @n
+@e:     stz LBUF,x
+        jsr KEEPNAME
+        jsr SETNAME
+        bcc @o
+        lda #<M_NODF
+        ldy #>M_NODF
+        jmp FERR
+@o:     lda FDRV
+        jsr SETDRV
+        jsr FINDFILE
+        bcc @f
+        lda #<M_NODB
+        ldy #>M_NODB
+        jmp FERR
+@f:     jsr BACKNAME
+        lda #$FF
+        sta RDIDX
+        lda #0
+        jsr LOADTRK
+        ldx #3              ; IS IT A DB65 FILE?
+@sig:   lda TRKBUF,x
+        cmp DBSIG,x
+        bne @bad
+        dex
+        bpl @sig
+        lda TRKBUF+7        ; RECORD LENGTH 2 TO MRECMAX
+        cmp #>MRECMAX
+        bcs @bad
+        ldx #0              ; KEEP THE HEADER
+@h:     lda TRKBUF,x
+        sta MHDR,x
+        lda TRKBUF+256,x
+        sta MHDR+256,x
+        inx
+        bne @h
+        lda MHDR+4
+        sta MLEFT
+        lda MHDR+5
+        sta MLEFT+1
+        stz MTRK
+        stz MOFF
+        lda #>512
+        sta MOFF+1
+        lda #1
+        sta MERGE
+        rts
+@bad:   lda #<M_NOTDB
+        ldy #>M_NOTDB
+        jmp ERRMSG
+DBSIG:  .byte "DB65"
+M_NODF: .byte "THE .DF LINE NEEDS THE NAME OF A DB65 DATABASE",0
+M_NODB: .byte "THE DATABASE IN THE .DF LINE IS NOT ON THE DISK",0
+M_NOTDB: .byte "THE .DF FILE IS NOT A DB65 DATABASE",0
+
+; THE NEXT RECORD (NOT DELETED) INTO MREC.  C=1 WHEN THERE ARE NO MORE
+NEXTREC:
+@l:     lda MLEFT
+        ora MLEFT+1
+        bne @1
+        sec
+        rts
+@1:     lda MLEFT
+        bne @2
+        dec MLEFT+1
+@2:     dec MLEFT
+        clc                 ; DOES IT FIT IN THIS TRACK?
+        lda MOFF
+        adc MHDR+6
+        sta TMP
+        lda MOFF+1
+        adc MHDR+7
+        sta TMP+1
+        cmp #>2048
+        bcc @in
+        bne @nt
+        lda TMP
+        beq @in
+@nt:    inc MTRK            ; NO: THE START OF THE NEXT
+        stz MOFF
+        stz MOFF+1
+        lda MHDR+6
+        sta TMP
+        lda MHDR+7
+        sta TMP+1
+@in:    lda MTRK
+        jsr LOADTRK
+        clc                 ; GP2 = THE RECORD IN TRKBUF
+        lda MOFF
+        adc #<TRKBUF
+        sta GP2
+        lda MOFF+1
+        adc #>TRKBUF
+        sta GP2+1
+        lda TMP             ; (THE NEXT ONE STARTS AT THE END OF IT)
+        sta MOFF
+        lda TMP+1
+        sta MOFF+1
+        lda #<MREC
+        sta GP
+        lda #>MREC
+        sta GP+1
+        lda MHDR+6          ; COPY IT
+        sta TMP
+        lda MHDR+7
+        sta TMP+1
+        ldy #0
+@c:     lda TMP
+        ora TMP+1
+        beq @d
+        lda (GP2),y
+        sta (GP),y
+        iny
+        bne @c2
+        inc GP+1
+        inc GP2+1
+@c2:    lda TMP
+        bne @c3
+        dec TMP+1
+@c3:    dec TMP
+        bra @c
+@d:     lda MREC            ; DELETED?  THEN THE NEXT
+        cmp #'*'
+        bne :+
+        jmp @l
+:
+        clc
+        rts
+
+; "&" WAS JUST READ.  IF A FIELD NAME AND "&" FOLLOW, SKIP THEM AND PUT
+; THE FIELD'S TEXT IN VALB.  C=1 IF NOT (THE "&" IS PRINTED AS IT IS)
+FIELDREF:
+        lda POFF
+        sta OFF
+        lda POFF+1
+        sta OFF+1
+        ldx #0
+@n:     phx
+        jsr CHARAT
+        plx
+        bcs @no
+        cmp #'&'
+        beq @end
+        jsr UPPER
+        cpx #11
+        bcs @no
+        sta MNAME,x
+        inx
+        jsr OFFINC
+        bra @n
+@end:   cpx #0
+        beq @no
+        stz MNAME,x
+        stx GI
+        jsr FINDFLD
+        bcs @no
+        jsr OFFINC          ; FOUND: GO ON AFTER THE SECOND "&"
+        lda OFF
+        sta POFF
+        lda OFF+1
+        sta POFF+1
+        jsr ITSET
+        jsr FLDTEXT
+        clc
+        rts
+@no:    lda POFF            ; (BACK TO JUST AFTER THE "&")
+        sta OFF
+        lda POFF+1
+        sta OFF+1
+        jsr ITSET
+        sec
+        rts
+
+; MNAME (GI LONG) IN THE HEADER?  C=0: GP = ITS 16-BYTE ENTRY
+FINDFLD: lda #<(MHDR+16)
+        sta GP
+        lda #>(MHDR+16)
+        sta GP+1
+        ldx MHDR+8          ; HOW MANY FIELDS
+        beq @no
+@f:     ldy #0
+@c:     lda (GP),y
+        cmp MNAME,y
+        bne @nx
+        cmp #0
+        beq @yes
+        iny
+        cpy #11
+        bne @c
+        lda MNAME,y         ; (AN 11-LETTER NAME)
+        beq @yes
+@nx:    clc
+        lda GP
+        adc #16
+        sta GP
+        bcc @1
+        inc GP+1
+@1:     dex
+        bne @f
+@no:    sec
+        rts
+@yes:   clc
+        rts
+
+; THE FIELD AT (GP) OF MREC -> VALB/SUBN, TIDIED:
+; TEXT WITHOUT THE SPACES AROUND IT, DATES AS DD/MM/YYYY
+FLDTEXT: ldy #14            ; GP2 = MREC + OFFSET
+        clc
+        lda (GP),y
+        adc #<MREC
+        sta GP2
+        iny
+        lda (GP),y
+        adc #>MREC
+        sta GP2+1
+        ldy #12
+        lda (GP),y          ; WIDTH
+        cmp #128
+        bcc @w
+        lda #128
+@w:     sta TI
+        ldy #11
+        lda (GP),y
+        sta KCH             ; TYPE
+        ldy #0              ; SKIP THE SPACES IN FRONT
+@s:     cpy TI
+        beq @e
+        lda (GP2),y
+        cmp #' '
+        bne @e
+        iny
+        bra @s
+@e:     ldx #0
+@c:     cpy TI
+        beq @t
+        lda (GP2),y
+        sta VALB,x
+        inx
+        iny
+        bra @c
+@t:     cpx #0              ; AND THE SPACES AFTER IT
+        beq @z
+        lda VALB-1,x
+        cmp #' '
+        bne @z
+        dex
+        bra @t
+@z:     stx SUBN
+        stz SUBI
+        lda KCH             ; A DATE: YYYYMMDD -> DD/MM/YYYY
+        cmp #'D'
+        bne @r
+        cpx #8
+        bne @r
+        ldx #7
+@d:     lda VALB,x
+        sta LB2,x
+        dex
+        bpl @d
+        ldx #0
+@o:     ldy DATEORD,x
+        lda LB2,y
+        cpy #$FF
+        bne @p
+        lda #'/'
+@p:     sta VALB,x
+        inx
+        cpx #10
+        bne @o
+        stx SUBN
+@r:     rts
+DATEORD: .byte 6,7,$FF,4,5,$FF,0,1,2,3

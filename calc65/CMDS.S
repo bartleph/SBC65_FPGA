@@ -43,6 +43,8 @@ CMDTAB: .byte 'B'
         .word C_SAVE-1
         .byte 'L'
         .word C_LOAD-1
+        .byte 'N'
+        .word C_NAMES-1
         .byte 'Z'
         .word C_ZAP-1
         .byte 'Q'
@@ -1198,6 +1200,9 @@ C_SAVE: jsr PROMPT
         .byte "Save as: ",0
         jsr ASKNAME
         bcs @x
+        lda FDRV
+        jsr SETDRV
+        bcs @err
         jsr COMPACT
         lda #<SAVCMD        ; "MS 7700 " + END + " " + NAME
         sta MP
@@ -1234,6 +1239,11 @@ C_LOAD: jsr PROMPT
         bcc :+
         jmp @x
 :
+        lda FDRV
+        jsr SETDRV
+        bcc :+
+        jmp @err
+:
         lda #<LODCMD        ; "ML " + NAME
         sta MP
         lda #>LODCMD
@@ -1269,35 +1279,137 @@ C_LOAD: jsr PROMPT
 @x:     jmp MAIN
 LODCMD: .byte "ML ",0
 
-; FILE NAME INTO EBUF/FNAME (THE LAST ONE IS OFFERED).  C=1 CANCELLED
+; FILE NAME INTO EBUF/FNAME (THE LAST ONE IS OFFERED, AS B:NAME).
+; A NAME CAN START WITH ITS DRIVE ("B:BUDGET"); WITHOUT ONE IT IS THE
+; DEFAULT DRIVE (/N).  FDRV = THE DRIVE.  C=1 CANCELLED OR BAD
 ASKNEW: stz ELEN            ; (LOAD: START EMPTY)
         bra ASKN2
 ASKNAME:
         ldx #0
-@c:     lda FNAME,x
-        sta EBUF,x
+        lda FNAME
         beq @e
+        lda FDRV
+        ora #$40
+        sta EBUF
+        lda #':'
+        sta EBUF+1
+@c:     lda FNAME,x
+        sta EBUF+2,x
+        beq @e2
         inx
         bra @c
+@e2:    inx
+        inx
 @e:     stx ELEN
 ASKN2:  jsr EDIT
         bcs @x
-        lda ELEN
-        beq @no
-        cmp #15
-        bcs @no
-        ldx #0
-@s:     lda EBUF,x
+        lda DEFDRV
+        sta NDRV
+        ldy #0              ; "X:" FIRST?
+        lda EBUF+1
+        cmp #':'
+        bne @nd
+        lda EBUF
         jsr UPPER
-        sta FNAME,x
+        sec
+        sbc #'A'-1
+        beq @bad
+        cmp #5
+        bcs @bad
+        sta NDRV
+        ldy #2
+@nd:    ldx #0
+@s:     lda EBUF,y
+        jsr UPPER
+        sta NBUF,x
         cmp #0
-        beq @ok
+        beq @end
+        iny
         inx
-        bra @s
-@ok:    clc
+        cpx #15
+        bcc @s
+        bra @no             ; (TOO LONG)
+@end:   cpx #0
+        beq @no
+@cp:    lda NBUF,x          ; (INCLUDING THE 0)
+        sta FNAME,x
+        dex
+        bpl @cp
+        lda NDRV
+        sta FDRV
+        clc
 @x:     rts
 @no:    sec
         rts
+@bad:   jsr MSG
+        .byte "THE DRIVE MUST BE A, B, C OR D",0
+        sec
+        rts
+        .bss
+NBUF:   .res 16
+NDRV:   .res 1
+        .code
+
+; SELECT DRIVE A (1-4 = A-D) WITH THE DOS "SE" COMMAND, IF IT ISN'T
+; ALREADY.  C=1 IF THE DOS GAVE AN ERROR
+SETDRV: cmp DRIVE
+        beq @ok
+        pha
+        lda #<SECMD
+        sta MP
+        lda #>SECMD
+        sta MP+1
+        jsr CMDSTART
+        pla
+        ora #$40
+        jsr CMDCH
+        lda #$0D
+        jsr CMDCH
+        jmp DOSCALL
+@ok:    clc
+        rts
+SECMD:  .byte "SE ",0
+
+;---------------------------------------------------------------------
+; /N  NAMES: THE DIRECTORY OF A DRIVE (WHICH BECOMES THE DRIVE FOR
+;     NAMES WITHOUT ONE)
+;---------------------------------------------------------------------
+C_NAMES: jsr PROMPT
+        .byte "Directory of which drive? A B C D (RETURN = this one) ",0
+        jsr GETKEY
+        cmp #$0D
+        bne @l
+        lda DEFDRV
+        bra @s
+@l:     jsr UPPER
+        sec
+        sbc #'A'-1
+        beq @x
+        cmp #5
+        bcs @x
+        sta DEFDRV          ; (IT BECOMES THE DRIVE FOR NAMES WITHOUT ONE)
+@s:     jsr SETDRV
+        bcs @err
+        jsr CLS
+        lda #<DICMD
+        sta MP
+        lda #>DICMD
+        sta MP+1
+        jsr CMDSTART
+        jsr DOSCALL
+        bcs @err
+        jsr PRS
+        .byte 13,10,"Press any key",0
+        jsr GETKEY
+        lda #1
+        sta FULL
+@x:     jmp MAIN
+@err:   jsr MSG
+        .byte "DISK ERROR",0
+        lda #1
+        sta FULL
+        jmp MAIN
+DICMD:  .byte "DI",13,0
 
 ; BUILD A DOS COMMAND LINE IN CMDBUF
 CMDSTART:

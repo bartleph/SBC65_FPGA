@@ -20,7 +20,7 @@ RDOFF:  .res 2
 RDIDX:  .res 1              ;   TRACK NOW IN TRKBUF ($FF = NONE)
 LAST:   .res 1
 RCNT:   .res 1
-ONAME:  .res 16
+ONAME:  .res 17
 RESTN:  .res 1
 RSTART: .res 2
 WMODE:  .res 1              ; WRITING: 0 = COUNT ONLY, 1 = WRITE
@@ -47,14 +47,31 @@ TOKPRT: .res 1
         .code
 
 ; ---- FILE NAMES ------------------------------------------------------
-; LBUF -> FNAME (UPPER CASE, AT MOST 14).  C=1 IF THERE IS NONE
+; LBUF -> FNAME (UPPER CASE, AT MOST 14) AND FDRV.  A NAME CAN START
+; WITH A DRIVE, "B:NAME"; WITHOUT ONE IT IS THE DEFAULT DRIVE (^KF).
+; C=1 IF THERE IS NO NAME (OR A BAD DRIVE: MESSAGE SET)
 SETNAME: ldx #0
         ldy #0
 @sk:    lda LBUF,x          ; (LEADING SPACES)
         cmp #' '
-        bne @c
+        bne @d
         inx
         bra @sk
+@d:     lda DEFDRV
+        sta FDRV
+        lda LBUF+1,x        ; "X:" FIRST?
+        cmp #':'
+        bne @c
+        lda LBUF,x
+        jsr UPPER
+        sec
+        sbc #'A'-1
+        beq @bad
+        cmp #5
+        bcs @bad
+        sta FDRV
+        inx
+        inx
 @c:     lda LBUF,x
         beq @e
         cmp #' '
@@ -73,7 +90,13 @@ SETNAME: ldx #0
         rts
 @ok:    clc
         rts
-KEEPNAME: ldx #15           ; FNAME -> ONAME, TO PUT BACK IF THINGS FAIL
+@bad:   lda #<M_DRV
+        ldy #>M_DRV
+        jsr SETMSG
+        sec
+        rts
+M_DRV:  .byte "THE DRIVE MUST BE A, B, C OR D",0
+KEEPNAME: ldx #16           ; FNAME, FDRV -> ONAME, TO PUT BACK IF THINGS FAIL
 @l:     lda FNAME,x
         sta ONAME,x
         dex
@@ -84,7 +107,7 @@ KEEPNAME: ldx #15           ; FNAME -> ONAME, TO PUT BACK IF THINGS FAIL
 BACKNAME: lda RESTN
         beq @r
         stz RESTN
-        ldx #15
+        ldx #16
 @l:     lda ONAME,x
         sta FNAME,x
         dex
@@ -165,7 +188,9 @@ K_READ: jsr KEEPNAME
         jmp MAIN
 
 ; ---- OPEN A FILE: FIND IT, READ ITS FIRST TRACK, CHECK THE HEADER -------
-OPENRD: jsr FINDFILE
+OPENRD: lda FDRV
+        jsr SETDRV
+        jsr FINDFILE
         bcc @f
         lda #<M_NOFILE
         ldy #>M_NOFILE
@@ -449,12 +474,21 @@ GPINC:  inc GP
 ; SAVING.  ASK FOR THE NAME, COUNT THE BYTES, MAKE THE FILE WITH MS,
 ; THEN WRITE IT A TRACK AT A TIME.
 ;=====================================================================
-SAVEDOC: ldx #0             ; THE NAME SO FAR AS THE SUGGESTION
-@c:     lda FNAME,x
-        sta LBUF,x
+SAVEDOC: ldx #0             ; THE NAME SO FAR AS THE SUGGESTION (B:NAME)
+        lda FNAME
         beq @e
+        lda FDRV
+        ora #$40
+        sta LBUF
+        lda #':'
+        sta LBUF+1
+@c:     lda FNAME,x
+        sta LBUF+2,x
+        beq @e2
         inx
         bra @c
+@e2:    inx
+        inx
 @e:     stx LLEN
         jsr ASK
         .byte "Save as:",0
@@ -462,6 +496,8 @@ SAVEDOC: ldx #0             ; THE NAME SO FAR AS THE SUGGESTION
 @x:     jmp MAIN
 @1:     jsr SETNAME
         bcs @x
+        lda FDRV
+        jsr SETDRV
         lda FTYPE
         cmp #2
         bne @2

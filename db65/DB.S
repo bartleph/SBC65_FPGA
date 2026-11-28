@@ -5,7 +5,7 @@
 ; BUILD:  ca65 --cpu 65C02 DB.S -o DB.o
 ;         ld65 -C db.cfg DB.o -o DB.BIN
 ; LOAD AND RUN: HL (DB65.HEX), THEN GO 3B00.  SAVE THE PROGRAM WITH
-;         MS 3B00 81FF DB65  AND AFTER THAT RUN IT WITH  MR DB65
+;         MS 3B00 83FF DB65  AND AFTER THAT RUN IT WITH  MR DB65
 ;
 ; MEMORY: $3B00-$8FFF PROGRAM, $9000-$9FFF TWO TRACK BUFFERS,
 ;   $A000 FILE HEADER, $A200 RECORD, $A600 DIRECTORY, $A800 FORM /
@@ -16,6 +16,7 @@
 ACIAS   = $C080             ; FPGA CONSOLE ACIA
 ACIAD   = $C081
 
+DRIVE   = $265C             ; ROM DOS: THE CURRENT DRIVE (1-4 = A-D)
 DOCMD   = $E801             ; ROM DOS: RUN THE COMMAND LINE AT (INBUF)
 SETERR  = $E7FA             ; DOS ERROR VECTOR = A (LO), Y (HI)
 INBUF   = $E1
@@ -60,6 +61,9 @@ LLEN:   .res 1
 OLDLINE: .res LBMAX+2
 CPOS:   .res 1
 FNAME:  .res 16
+FDRV:   .res 1              ; ITS DRIVE (1-4), RIGHT AFTER FNAME
+ODRV:   .res 1              ; THE DRIVE WHEN DB65 STARTED
+DEFDRV: .res 1              ; THE DRIVE FOR NAMES WITHOUT ONE (SET DEFAULT)
 EMSG:   .res 2
 EMSG2:  .res 2
 RECNO:  .res 2              ; CURRENT RECORD (1-BASED, 0 = NONE)
@@ -84,6 +88,9 @@ START:  tsx
         sta NLINES
         stz PBK
         stz OPENF
+        lda DRIVE
+        sta ODRV
+        sta DEFDRV
         stz RECNO
         stz RECNO+1
         stz OLDLINE
@@ -104,6 +111,8 @@ START:  tsx
         jmp LOOP
 
 QUIT:   jsr FLUSHALL
+        lda ODRV            ; THE DOS GETS ITS OWN DRIVE BACK
+        jsr SETDRV
         jsr CRLF
         ldx #ZPSIZE-1
 @z:     lda ZPSAVE,x

@@ -416,6 +416,8 @@ M_DISK: .byte "DISK ERROR",0
 ; SECTORS 1 AND 2) INTO DIRB.  C=0 FOUND: FTRK0 = START TRACK (BCD),
 ; FTRKN = NUMBER OF TRACKS.  C=1 NOT THERE.
 FINDFILE:
+        lda FDRV            ; ON THE NAME'S DRIVE
+        jsr SETDRV
         lda #<DIRCMD1
         sta MP
         lda #>DIRCMD1
@@ -486,3 +488,28 @@ BCDBIN: pha                 ; BCD A -> BINARY
         dex
         bra @l
 @r:     rts
+
+; SELECT DRIVE A (1-4 = A-D) WITH THE DOS "SE" COMMAND, IF IT ISN'T
+; ALREADY (A DOS ERROR GOES TO DSKERR)
+SETDRV: cmp DRIVE
+        beq @r
+        pha
+        lda #<SECMD
+        sta MP
+        lda #>SECMD
+        sta MP+1
+        jsr CMDSTART
+        pla
+        ora #$40
+        jsr CMDCH
+        lda #$0D
+        jsr CMDCH
+        jmp DOSCALL
+@r:     rts
+SECMD:  .byte "SE ",0
+; PRINT "B:" FOR THE FILE IN USE
+PRDBDRV: lda DBNAME+16
+        ora #$40
+        jsr OUTC
+        lda #':'
+        jmp OUTC

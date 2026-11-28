@@ -2,10 +2,11 @@
 
 WP65 is a full-screen word processor for the SBC65 FPGA computer (48K RAM) running the OS-65D V3.3 ROM DOS. It is written in 65C02 assembler, in the spirit of OSI's WP-2, and uses WordStar-style control keys. It works on any 80-column VT100 terminal on the console: the FPGA's built-in screen, PuTTY, or the CYD and JC3248 terminals.
 
-- **The whole document is in memory:** about 15,000 characters. The status line shows how much room is left.
+- **The whole document is in memory:** about 14,000 characters. The status line shows how much room is left.
 - **Word wrap:** you type, and words wrap at the edge of the screen. RETURN ends a paragraph.
 - **Find and replace:** search the whole text or from the cursor, with or without asking at each match.
 - **Blocks:** mark a block, then copy, move or delete it.
+- **Mail merge:** prints a letter once for each record in a DB65 database, filling in the fields.
 - **Printing:** with margins, justification, page length, headers and footers, set by dot commands. You can view the result on the screen, or send it to the console.
 - **Three kinds of file:**
   - WP65 documents.
@@ -18,14 +19,14 @@ WP65 is a full-screen word processor for the SBC65 FPGA computer (48K RAM) runni
 
 1. At the DOS prompt, type `HL` and send `WP65.HEX`. HL finishes by itself.
 2. Type `GO 3B00`.
-3. Save it to disk once with `MS 3B00 68FF WP65` (6 tracks). After that, `MR WP65` loads and starts it.
+3. Save it to disk once with `MS 3B00 6DFF WP65` (7 tracks). After that, `MR WP65` loads and starts it.
 
 The screen starts at 24 lines. For the FPGA's own 80 × 32 screen, press `^KZ` and enter 32. Then save the program again with `MS` so that it starts that way. (The setting is the byte at `$3B03`.)
 
 ## The screen
 
 The top line shows:
-- the file name, with `*` if the text has changed since it was saved;
+- the drive and file name, as `B:LETTER`, with `*` if the text has changed since it was saved;
 - the file type (Document, Assembler or BASIC);
 - the line and column of the cursor;
 - Insert or Over;
@@ -67,7 +68,7 @@ Messages and questions also appear on the top line. ESC cancels any question.
 | `^KQ` | quit without saving (it asks first if the text has changed) |
 | `^KT` | set the file type: Document, Assembler or BASIC |
 | `^KP` | print: V views it on the screen, P sends it to the console |
-| `^KF` | the disk directory |
+| `^KF` | the directory of a drive: press A–D, or RETURN for the default drive. The drive you pick becomes the default. |
 | `^KZ` | the number of screen lines |
 | `^J` | help |
 
@@ -103,10 +104,42 @@ In a document, a line that starts with one of these dot commands sets up the pri
 | `.NF` / `.FI` | no fill: print lines as they are typed / fill again | fill |
 | `.PA` | start a new page | |
 | `.SP [n]` | n blank lines | 1 |
+| `.DF name` | mail merge with this DB65 database (see below) | |
 
 Words fill each line between the margins, and runs of spaces between words become one space. Spaces at the start of a paragraph are kept as an indent. A blank line prints as a blank line.
 
+### Mail merge
+
+Put a `.DF` line in a document, naming a DB65 database (with its drive if needed), and write field names between `&` signs where the record's data should go:
+
+```
+.DF B:PEOPLE
+.HE &NAME&
+Dear &NAME&,
+
+Your subscription for &TOWN& runs out on &RENEW&.
+```
+
+`^KP` then prints the whole document once for each record, each copy starting on a new page with its page numbers starting again at 1. Deleted records are left out. Field names can be in capitals or small letters.
+
+How the fields are printed:
+- **Text:** without the spaces around it.
+- **Numbers:** as DB65 stores them, without the spaces in front.
+- **Dates:** as DD/MM/YYYY. An empty date prints as nothing.
+- **Logical fields:** Y or N.
+- **Other `&`:** an `&` that isn't part of a field name is printed as it is, so `Fish & chips` and `&NOFIELD&` come out unchanged.
+
+To print for only some records, mark the others as deleted in DB65, for example `DELETE FOR TOWN <> "RYDE"`; `RECALL ALL` brings them back afterwards. Or work on a copy: `SORT ON NAME TO B:LETTERS`, then `USE B:LETTERS` and delete the records you don't want there. This also prints the letters in name order.
+
 Assembler and BASIC files are printed as listings instead: each line as it is, with the file name and page number at the top of each page.
+
+## Drives
+
+A file name can start with its drive: `B:LETTER`. Without a drive, the default drive is used.
+- **Default drive:** the one the DOS was on when WP65 started. `^KF` changes it.
+- **Save:** `^KS` offers the name with its drive, so a file loaded from B goes back to B.
+- **Read in:** `^KR` can read a file from any drive.
+- **On quitting:** WP65 puts the DOS back on the drive it started on.
 
 ## Files
 
@@ -138,11 +171,11 @@ Documents are word-wrapped on the screen. Assembler and BASIC files are not: a l
 
 | Address | Use |
 |---|---|
-| `$3B00`-`$68FF` | the program |
-| `$6900`-`$6FFF` | its variables |
-| `$7000`-`$77FF` | one track of the file being loaded or saved (and the directory) |
-| `$7800`-`$81FF` | a copy of the screen, so only the changes are sent |
-| `$8200`-`$BFFF` | the text |
+| `$3B00`-`$6DFF` | the program |
+| `$6E00`-`$75FF` | its variables |
+| `$7600`-`$7DFF` | one track of the file being loaded or saved (and the directory) |
+| `$7E00`-`$87FF` | a copy of the screen, so only the changes are sent (while printing, the mail merge header and record) |
+| `$8800`-`$BFFF` | the text |
 | `$30`-`$AF` | zero page, saved at the start and put back at the end |
 
 ## Building

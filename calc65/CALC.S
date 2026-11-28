@@ -5,7 +5,7 @@
 ; BUILD:  ca65 --cpu 65C02 CALC.S -o CALC.o
 ;         ld65 -C calc.cfg CALC.o -o CALC.BIN
 ; LOAD AND RUN: HL (CALC65.HEX), THEN GO 4000.  SAVE IT WITH
-;         MS 4000 6FFF CALC65   AND START IT AFTER THAT WITH  MR CALC65
+;         MS 4000 6CFF CALC65   AND START IT AFTER THAT WITH  MR CALC65
 ;
 ; MEMORY: $4000-$6FFF PROGRAM, $7700 SHEET HEADER, $7800-$91FF CELL
 ;         TABLE, $9200-$BFFF CELL TEXT AND VALUES.
@@ -18,6 +18,7 @@ ACIAS   = $C080             ; FPGA CONSOLE ACIA
 ACIAD   = $C081
 
 ; ---- ROM DOS ENTRY POINTS (SBC65_FPGA ROM) ----
+DRIVE   = $265C             ; THE DOS'S CURRENT DRIVE (1-4 = A-D)
 DOCMD   = $E801             ; RUN THE COMMAND LINE AT (INBUF)
 SETERR  = $E7FA             ; ERROR VECTOR = A (LO), Y (HI)
 SEEK    = $E435
@@ -81,6 +82,9 @@ ELEN:   .res 1
 EDX:    .res 1              ; SCREEN COLUMN WHERE THE EDIT STARTS
 DBUF:   .res 82             ; ONE CELL AS SHOWN
 FNAME:  .res 16             ; LAST FILE NAME
+FDRV:   .res 1              ; ITS DRIVE (1-4 = A-D)
+ODRV:   .res 1              ; THE DOS'S DRIVE WHEN CALC65 STARTED
+DEFDRV: .res 1              ; THE DRIVE FOR NAMES WITHOUT ONE (/N)
 MSGON:  .res 1
 RDI:    .res 1
 TBUF:   .res 82             ; SCRATCH TEXT (REFERENCE ADJUSTING)
@@ -122,6 +126,10 @@ START:  tsx
         sta NLINES
         stz PBK
         stz FNAME
+        lda DRIVE
+        sta ODRV
+        sta FDRV
+        sta DEFDRV
         stz CCOL
         stz CROW
         stz LCOL
@@ -138,7 +146,9 @@ START:  tsx
         sta FULL
         jmp MAIN
 
-QUIT:   jsr CLS
+QUIT:   lda ODRV            ; THE DOS GETS ITS OWN DRIVE BACK
+        jsr SETDRV
+        jsr CLS
         ldx #ZPSIZE-1
 @z:     lda ZPSAVE,x
         sta ZPBASE,x
@@ -1425,7 +1435,8 @@ HELPTXT:
         .byte "/D Delete row/column    /I Insert row/column",$0A
         .byte "/E Edit the cell        /F Format (G $ I L R, width)",$0A
         .byte "/G Global (lines, auto/manual recalc)",$0A
-        .byte "/S Save   /L Load   /Z Zap (clear)   /Q Quit to DOS",$0A,$0A
+        .byte "/S Save   /L Load   /N Names (directory)   /Z Zap   /Q Quit",$0A
+        .byte "          a name can start with its drive:  B:BUDGET",$0A,$0A
         .byte "Press any key",0
 
         .include "CMDS.S"
