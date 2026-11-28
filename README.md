@@ -2,6 +2,8 @@
 
 An OSI-style 65C02 single-board computer, running a ROM-resident OS-65D V3.3 DOS, rebuilt in a Cyclone 10 LP FPGA (10CL006YE144C8G core board) with external SRAM, a built-in composite-video terminal, a PS/2 keyboard and SD-card "disks".
 
+The blog about the project, CALC65 and DB65: **[blog.bartvoip.co.uk](https://blog.bartvoip.co.uk)**.
+
 - **CPU:** 65C02 at 1 MHz (50 MHz / `CPU_DIV`)
 - **Console:** 6850 ACIA, 8N1, 19200 baud by default, 3.3 V TTL
 - **Display:** 80 × 32 text on composite video (PAL, or NTSC 80 × 28)
