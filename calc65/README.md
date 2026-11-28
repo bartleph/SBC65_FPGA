@@ -11,7 +11,7 @@ A SuperCalc 2 style spreadsheet for the SBC65 FPGA computer (48K RAM) running th
 
 1. At the DOS prompt, type `HL` and send `CALC65.HEX`. HL finishes by itself.
 2. Type `GO 4000`.
-3. Save it to disk once with `MS 4000 6ABF CALC65`. After that, `MR CALC65` loads and starts it.
+3. Save it to disk once with `MS 4000 6CFF CALC65`. After that, `MR CALC65` loads and starts it.
 
 The screen starts at 24 lines. For the FPGA's own 80 × 32 screen use `/G L 32`, and then save the program again with the `MS` line above so it starts that way next time. (The setting is the byte at `$4003`.)
 
@@ -90,6 +90,7 @@ If a formula has a typing mistake, it says `ERROR IN FORMULA` and lets you corre
 | `/G` | **Global**: `L` = screen lines (12–60), `A` = recalculate after each entry, `M` = only when you press `!` |
 | `/S` | **Save** the sheet to disk by name, for example `BUDGET` (it uses the DOS `MS` command) |
 | `/L` | **Load** a sheet by name (it checks that the file is a CALC65 sheet first) |
+| `/N` | **Names**: the directory of a drive. Press A–D, or RETURN for the default drive. The drive you pick becomes the default. |
 | `/Z` | **Zap**: clear the whole sheet |
 | `/Q` | **Quit** to the DOS |
 
@@ -106,12 +107,19 @@ Format codes for `/F`:
 
 You can combine a number format and an alignment, for example `$L`. For `/F G` and `/F C` you can type a width (1–72) instead of a code.
 
+## Drives
+
+A file name can start with its drive: `B:BUDGET`. Without a drive, the default drive is used.
+- **Default drive:** the one the DOS was on when CALC65 started. `/N` changes it.
+- **Save:** `/S` offers the last name with its drive, so a sheet loaded from B goes back to B.
+- **On quitting:** CALC65 puts the DOS back on the drive it started on.
+
 ## Memory used
 
 | Address | What |
 |---|---|
-| `$4000-$6ABF` | The program |
-| `$6AC0-$6E5F` | Its variables |
+| `$4000-$6C52` | The program |
+| `$6C53-$700D` | Its variables |
 | `$7700-$773F` | Sheet header: column widths and formats |
 | `$7800-$91FF` | Cell table (2 bytes per cell) |
 | `$9200-$BFFF` | Cell contents. Space freed by edits is reclaimed automatically when needed. |
@@ -127,14 +135,6 @@ ld65 -C calc.cfg CALC.o -o CALC.BIN
 ```
 
 `CALC.S` includes `BCD.S` (the decimal maths), `CELLS.S` (cell storage), `EVAL.S` (the formula evaluator) and `CMDS.S` (the slash commands and disk).
-
-## Test tools
-
-`tools/` has the Python tools used to test CALC65 (they need `pip install py65 pyte pillow`):
-
-- `emu.py` runs the program in a 65C02 emulator with a VT100 screen.
-- `bcdtest.py` checks the decimal maths against Python's `decimal` module. It assembles `TBCD.S` first.
-- `fixbr.py` turns branches that are too long into `JMP`s; the source is already fixed.
 
 ## Limits and notes
 

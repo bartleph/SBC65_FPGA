@@ -42,6 +42,7 @@ KW_ON:  .byte "ON",0
 KW_TO:  .byte "TO",0
 KW_DESC: .byte "DESCENDING",0
 KW_LINES: .byte "LINES",0
+KW_DEFAULT: .byte "DEFAULT",0
 KW_BLANK: .byte "BLANK",0
 
 ; KEYWORD (A/Y) AT TI?  C=0 YES
@@ -64,11 +65,13 @@ NEEDEND: jsr PEEK
         jmp ESYNTAX
 @r:     rts
 
-; A FILE NAME (UP TO 14 CHARACTERS, NO SPACES) -> FNAME.  C=1 NONE
+; A FILE NAME (UP TO 14 CHARACTERS, NO SPACES) -> FNAME.  C=1 NONE.
+; IT CAN START WITH ITS DRIVE, "B:NAME"; FDRV = THE DRIVE (WITHOUT ONE,
+; THE DOS'S CURRENT DRIVE)
 GETFNAME:
         jsr PEEK
         beq @no
-        ldy TI
+        jsr GETDRV
         ldx #0
 @l:     lda (TP),y
         beq @e
@@ -91,6 +94,52 @@ GETFNAME:
         ldy #>M_LONG
         jmp ERRMSG
 M_LONG: .byte "FILE NAMES ARE AT MOST 14 CHARACTERS",0
+
+; AN OPTIONAL "X:" AT TI -> FDRV (ELSE THE CURRENT DRIVE).  Y = TI AFTER
+GETDRV: lda DEFDRV
+        sta FDRV
+        ldy TI
+        iny
+        lda (TP),y
+        dey
+        cmp #':'
+        bne @r
+        lda (TP),y
+        jsr UPPER
+        sec
+        sbc #'A'-1
+        beq BADDRV
+        cmp #5
+        bcs BADDRV
+        sta FDRV
+        iny
+        iny
+@r:     rts
+BADDRV: lda #<M_DRV
+        ldy #>M_DRV
+        jmp ERRMSG
+M_DRV:  .byte "THE DRIVE MUST BE A, B, C OR D",0
+; A DRIVE LETTER (WITH OR WITHOUT ":") -> A (1-4).  C=1 IF THERE IS NONE
+GETDLET: jsr PEEK
+        beq @no
+        jsr UPPER
+        sec
+        sbc #'A'-1
+        beq BADDRV
+        cmp #5
+        bcs BADDRV
+        pha
+        iny
+        lda (TP),y
+        cmp #':'
+        bne @1
+        iny
+@1:     sty TI
+        pla
+        clc
+        rts
+@no:    sec
+        rts
 
 ; NUMBER EXPRESSION -> 16-BIT CNT16
 GETNUM16:
@@ -618,6 +667,8 @@ H_CREATE:
         sec
         sbc #2
         sta IX             ; END PAGE
+        lda FDRV
+        jsr SETDRV
         lda #<MSCMD
         sta MP
         lda #>MSCMD
@@ -634,7 +685,9 @@ H_CREATE:
         jsr FINDFILE        ; WHERE DID IT GO?
         bcc @w
         jmp DSKERR
-@w:     lda FTRK0
+@w:     lda FDRV
+        sta CXDRV
+        lda FTRK0
         sta CXSTART
         lda FTRKN
         sta CXNT
@@ -997,6 +1050,7 @@ FLDTEXT: jsr FLDADDR        ; GP, A = WIDTH
 ; DISPLAY STRUCTURE
 STRUCT: jsr PRS
         .byte "Database: ",0
+        jsr PRDBDRV
         ldx #0
 @n:     lda DBNAME,x
         beq @n2
@@ -1895,6 +1949,8 @@ H_PACK: jsr NEEDOPEN
         jsr FLUSHALL
         lda CXSTART
         sta CXSTART+1
+        lda CXDRV
+        sta CXDRV+1
         lda CXNT
         sta CXNT+1
         lda #$FF
@@ -2042,9 +2098,12 @@ H_SORT: jsr NEEDOPEN
         cmp DBNAME,x
         bne @diff
         cmp #0
-        beq @same
+        beq @sd
         inx
         bra @sm
+@sd:    lda FDRV            ; (THE SAME NAME ON ANOTHER DRIVE IS FINE)
+        cmp DBNAME+16
+        bne @diff
 @same:  lda #<M_SELF
         ldy #>M_SELF
         jmp ERRMSG
@@ -2152,6 +2211,11 @@ H_SORT: jsr NEEDOPEN
         sta CXCUR
         jsr PRS
         .byte "Sorted into ",0
+        lda FDRV
+        ora #$40
+        jsr OUTC
+        lda #':'
+        jsr OUTC
         ldx #0
 @pn:    lda FNAME,x
         beq @pe
@@ -2330,6 +2394,8 @@ MAKECOPY:
         sec
         sbc #2
         sta IX
+        lda FDRV
+        jsr SETDRV
         lda #<MSCMD
         sta MP
         lda #>MSCMD
@@ -2346,7 +2412,9 @@ MAKECOPY:
         jsr FINDFILE
         bcc @f
         jmp DSKERR
-@f:     lda FTRK0
+@f:     lda FDRV
+        sta CXDRV+1
+        lda FTRK0
         sta CXSTART+1
         lda FTRKN
         sta CXNT+1
@@ -2633,7 +2701,12 @@ COPYPASS:
 ;=====================================================================
 ; DIR, SET, HELP, QUIT
 ;=====================================================================
-H_DIR:  jsr FLUSHALL
+H_DIR:  jsr FLUSHALL         ; DIR [B:] (WITHOUT ONE, THE DEFAULT DRIVE)
+        jsr GETDLET
+        bcc @d
+        lda DEFDRV
+@d:     jsr SETDRV
+        jsr NEEDEND
         lda #<DICMD
         sta MP
         lda #>DICMD
@@ -2643,7 +2716,22 @@ H_DIR:  jsr FLUSHALL
         jmp CRLF
 DICMD:  .byte "DI",13,0
 
-H_SET:  lda #<KW_LINES
+H_SET:  lda #<KW_DEFAULT     ; SET DEFAULT TO B
+        ldy #>KW_DEFAULT
+        jsr KW
+        bcs @nd
+        lda #<KW_TO
+        ldy #>KW_TO
+        jsr KW              ; (THE TO CAN BE LEFT OUT)
+        jsr GETDLET
+        bcc @sd
+        jmp ESYNTAX
+@sd:    pha
+        jsr NEEDEND
+        pla
+        sta DEFDRV
+        rts
+@nd:    lda #<KW_LINES
         ldy #>KW_LINES
         jsr KW
         bcc @l
@@ -2700,7 +2788,8 @@ HELPTXT:
         .byte "COUNT [FOR c],  SUM / AVERAGE [fields] [FOR c]",$0A
         .byte "SORT ON field TO newname [DESCENDING]",$0A
         .byte "? value, value     print values",$0A
-        .byte "DIR,  SET LINES n,  CLOSE,  QUIT",$0A
+        .byte "DIR [B:],  SET DEFAULT TO B,  SET LINES n,  CLOSE,  QUIT",$0A
+        .byte "file names can start with their drive: USE B:PEOPLE",$0A
         .byte "scope: ALL, NEXT n, RECORD n   (DISPLAY/DELETE: this record)",$0A
         .byte "values: fields, 12.5, ",$22,"text",$22,", .T. .F., + - * /",$0A
         .byte "  = <> < > <= >= $ (contained in)  .AND. .OR. .NOT.",$0A

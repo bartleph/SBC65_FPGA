@@ -41,6 +41,7 @@ MAXFLD  = 20
 
         .bss
 CXSTART: .res 2             ; FIRST TRACK (BCD)
+CXDRV:  .res 2              ; DRIVE (1-4)
 CXNT:   .res 2              ; TRACKS IN THE FILE
 CXCUR:  .res 2              ; TRACK IN THE BUFFER ($FF = NONE)
 CXDIRTY: .res 2
@@ -55,7 +56,7 @@ TIDX:   .res 1
 TOFS:   .res 2
 FTRK0:  .res 1
 FTRKN:  .res 1
-DBNAME: .res 16             ; NAME OF THE FILE IN USE
+DBNAME: .res 17             ; NAME OF THE FILE IN USE, THEN ITS DRIVE
 M1:     .res 2              ; MULTIPLY / DIVIDE
 M2:     .res 2
 M3:     .res 2
@@ -134,6 +135,8 @@ CXLOAD: cmp CXCUR,x
         pla
         stx CXX
         pha
+        lda CXDRV,x         ; ITS DRIVE
+        jsr SETDRV
         lda #<CACMD
         sta MP
         lda #>CACMD
@@ -170,6 +173,8 @@ CXFLUSH: lda CXDIRTY,x
         bne @1
         rts
 @1:     stx CXX
+        lda CXDRV,x         ; ITS DRIVE
+        jsr SETDRV
         lda #<SACMD         ; "SA tt,1=hh00/8"
         sta MP
         lda #>SACMD
@@ -427,6 +432,8 @@ OPENFILE:
         ldy #>M_NOFILE
         jmp ERRMSG
 @f:     jsr CLOSEFILE
+        lda FDRV
+        sta CXDRV
         lda FTRK0
         sta CXSTART
         lda FTRKN
@@ -456,8 +463,8 @@ OPENFILE:
         jsr SETGEOM
         lda #1
         sta OPENF
-        ldx #15
-@n:     lda FNAME,x
+        ldx #16
+@n:     lda FNAME,x         ; (AND FDRV)
         sta DBNAME,x
         dex
         bpl @n

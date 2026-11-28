@@ -18,14 +18,14 @@ WP65 is a full-screen word processor for the SBC65 FPGA computer (48K RAM) runni
 
 1. At the DOS prompt, type `HL` and send `WP65.HEX`. HL finishes by itself.
 2. Type `GO 3B00`.
-3. Save it to disk once with `MS 3B00 68FF WP65` (6 tracks). After that, `MR WP65` loads and starts it.
+3. Save it to disk once with `MS 3B00 69FF WP65` (6 tracks). After that, `MR WP65` loads and starts it.
 
 The screen starts at 24 lines. For the FPGA's own 80 × 32 screen, press `^KZ` and enter 32. Then save the program again with `MS` so that it starts that way. (The setting is the byte at `$3B03`.)
 
 ## The screen
 
 The top line shows:
-- the file name, with `*` if the text has changed since it was saved;
+- the drive and file name, as `B:LETTER`, with `*` if the text has changed since it was saved;
 - the file type (Document, Assembler or BASIC);
 - the line and column of the cursor;
 - Insert or Over;
@@ -67,7 +67,7 @@ Messages and questions also appear on the top line. ESC cancels any question.
 | `^KQ` | quit without saving (it asks first if the text has changed) |
 | `^KT` | set the file type: Document, Assembler or BASIC |
 | `^KP` | print: V views it on the screen, P sends it to the console |
-| `^KF` | the disk directory |
+| `^KF` | the directory of a drive: press A–D, or RETURN for the default drive. The drive you pick becomes the default. |
 | `^KZ` | the number of screen lines |
 | `^J` | help |
 
@@ -108,6 +108,14 @@ Words fill each line between the margins, and runs of spaces between words becom
 
 Assembler and BASIC files are printed as listings instead: each line as it is, with the file name and page number at the top of each page.
 
+## Drives
+
+A file name can start with its drive: `B:LETTER`. Without a drive, the default drive is used.
+- **Default drive:** the one the DOS was on when WP65 started. `^KF` changes it.
+- **Save:** `^KS` offers the name with its drive, so a file loaded from B goes back to B.
+- **Read in:** `^KR` can read a file from any drive.
+- **On quitting:** WP65 puts the DOS back on the drive it started on.
+
 ## Files
 
 WP65 reads and writes the same workspace file format as the OS-65D `PU` and `LO` commands: a memory image starting at `$xx79`, one track (2K) per sector. The first five bytes are the start address, the end address and the number of tracks. The low byte of the start address gives the type:
@@ -138,11 +146,11 @@ Documents are word-wrapped on the screen. Assembler and BASIC files are not: a l
 
 | Address | Use |
 |---|---|
-| `$3B00`-`$68FF` | the program |
-| `$6900`-`$6FFF` | its variables |
-| `$7000`-`$77FF` | one track of the file being loaded or saved (and the directory) |
-| `$7800`-`$81FF` | a copy of the screen, so only the changes are sent |
-| `$8200`-`$BFFF` | the text |
+| `$3B00`-`$69FF` | the program |
+| `$6A00`-`$70FF` | its variables |
+| `$7100`-`$78FF` | one track of the file being loaded or saved (and the directory) |
+| `$7900`-`$82FF` | a copy of the screen, so only the changes are sent |
+| `$8300`-`$BFFF` | the text |
 | `$30`-`$AF` | zero page, saved at the start and put back at the end |
 
 ## Building

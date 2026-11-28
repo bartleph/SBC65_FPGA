@@ -17,7 +17,7 @@ A dBASE II style database for the SBC65 FPGA computer (48K RAM) running the OS-6
 
 1. At the DOS prompt, type `HL` and send `DB65.HEX`. HL finishes by itself.
 2. Type `GO 3B00`.
-3. Save it to disk once with `MS 3B00 82FF DB65` (10 tracks). After that, `MR DB65` loads and starts it.
+3. Save it to disk once with `MS 3B00 83FF DB65` (10 tracks). After that, `MR DB65` loads and starts it.
 
 The screen starts at 24 lines. For the FPGA's own 80 × 32 screen use `SET LINES 32`, then save the program again so it starts that way. (The setting is the byte at `$3B03`.)
 
@@ -67,7 +67,8 @@ Commands can be cut to their first four letters: `DISP` for `DISPLAY`, `REPL` fo
 | `SUM [items] [FOR c]` and `AVERAGE [items] [FOR c]` | Totals and averages. With no items, every number field is used. |
 | `SORT ON field TO name [DESCENDING]` | Writes a sorted copy of the file in use to a new file. |
 | `? value, value` | Prints values. You can use it as a calculator. |
-| `DIR` | The disk directory (the DOS `DI`). |
+| `DIR [B:]` | The directory of the default drive, or of the drive given (the DOS `DI`). |
+| `SET DEFAULT TO B` | The drive for file names without one (A–D). |
 | `SET LINES n` | Screen lines (12–60). |
 | `HELP` | A summary of the commands. |
 | `QUIT` | Back to the DOS. |
@@ -78,6 +79,14 @@ Commands can be cut to their first four letters: `DISP` for `DISPLAY`, `REPL` fo
 - `DISPLAY`, `DELETE`, `RECALL` and `REPLACE` use the current record, but all records once you add `FOR`.
 
 Long listings stop after each screenful. Press any key to go on, or ESC to stop. ESC also stops a long `REPLACE` or `COUNT`.
+
+## Drives
+
+Every file name can start with its drive, as in dBASE II: `USE B:PEOPLE`, `CREATE C:STOCK`, `SORT ON NAME TO B:BYNAME`. A name without a drive is on the default drive.
+- **Default drive:** the one the DOS was on when DB65 started. `SET DEFAULT TO B` changes it.
+- **The file in use:** DB65 remembers which drive it is on. `LIST STRUCTURE` shows it as `B:PEOPLE`.
+- **Two drives at once:** `SORT` can read a file on one drive and write the sorted copy to another.
+- **On quitting:** DB65 puts the DOS back on the drive it started on.
 
 ## The form (APPEND and EDIT)
 
@@ -149,8 +158,8 @@ Changes are written back after every command, so the file on disk is always up t
 
 | Address | What |
 |---|---|
-| `$3B00-$8270` | The program (`MS 3B00 82FF` saves it) |
-| `$8271-$89B5` | Its variables |
+| `$3B00-$83F0` | The program (`MS 3B00 83FF` saves it) |
+| `$83F1-$8B3B` | Its variables |
 | `$9000-$9FFF` | Two track buffers |
 | `$A000` | File header |
 | `$A200` | Record |
