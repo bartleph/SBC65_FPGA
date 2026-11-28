@@ -149,6 +149,12 @@ A dBASE II style database in 65C02 assembler, for this FPGA version. You type co
 
 ![DB65](db65/db65_demo.png)
 
+## WP65 word processor
+
+A full-screen word processor in 65C02 assembler, for this FPGA version, in the spirit of OSI's WP-2 with WordStar-style keys. Words wrap as you type; it has find and replace, block copy/move/delete, and printing with margins, justification, headers and footers set by dot commands (view on the screen or send to the console). It also loads and saves OS-65D assembler source and BASIC programs as plain text. Load `wp65/WP65.HEX` with `HL`, then type `GO 3B00`. See [wp65/README.md](wp65/README.md).
+
+![WP65](wp65/wp65_edit.png)
+
 ## DA - 65C02 disassembler
 
 `rom/DIS.S`, in the `$C100` ROM after the SD driver.
@@ -211,6 +217,7 @@ All set in `sbc65.qsf`.
 | `DOS_COMMANDS.md` | reference list of the ROM DOS commands |
 | `calc65/` | CALC65 spreadsheet: source, `CALC65.HEX`, guide, emulator test tools |
 | `db65/` | DB65 database: source, `DB65.HEX`, guide, emulator test tools |
+| `wp65/` | WP65 word processor: source, `WP65.HEX`, guide, emulator test tools |
 | `games/invaders/` | Space Invaders for OSI mode: source (ca65 and OSI Assembler), `INVADERS.HEX` |
 | `sim/` | GHDL testbenches and run script |
 
